@@ -2,6 +2,7 @@ import pandas as pd
 from time import sleep # control the crawl rate to avoid hammering the servers with too many requests
 from random import randint
 from tqdm import tqdm
+import re
 
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
@@ -94,3 +95,45 @@ class scrapping_foundations():
 
     def close_driver(self):
         self.driver.close()
+
+
+class cleaning_review_data():
+
+    def __init__(self, path: str) -> None:
+        self.data = pd.read_csv(path)
+
+        self.data = self.data.dropna(axis = 0, subset=['reviewer_feature', 'reviewer_id', 'rating'], how='any')
+        self.data = self.data.reset_index()
+        
+    def parsing_reviewer_features(self):
+        self.data['eye_color'] = ''
+        self.data['hair_color'] = ''
+        self.data['skin_tone'] = ''
+        self.data['skin_type'] = ''
+
+        for i in tqdm(range(len(self.data))):
+    
+            eye = re.search(r'.+eyes', self.data.loc[i, 'reviewer_feature'])
+            if eye:
+                self.data.loc[i, 'eye_color'] = eye.group()
+                self.data.loc[i, 'eye_color'] = self.data.loc[i, 'eye_color'].replace(' eyes', '')
+                self.data.loc[i, 'reviewer_feature'] = self.data.loc[i, 'reviewer_feature'].replace(eye.group(), '')
+            hair = re.search(r'.+hair', self.data.loc[i, 'reviewer_feature'])
+            if hair:
+                self.data.loc[i, 'hair_color'] = hair.group()
+                self.data.loc[i, 'hair_color'] = self.data.loc[i, 'hair_color'].replace(' hair', '').replace(', ', '')
+                self.data.loc[i, 'reviewer_feature'] = self.data.loc[i, 'reviewer_feature'].replace(hair.group(), '')
+            skin_tone = re.search(r'.+skin tone', self.data.loc[i, 'reviewer_feature'])
+            if skin_tone:
+                self.data.loc[i, 'skin_tone'] = skin_tone.group()
+                self.data.loc[i, 'skin_tone'] = self.data.loc[i, 'skin_tone'].replace(' skin tone', '').replace(', ', '')
+                self.data.loc[i, 'reviewer_feature'] = self.data.loc[i, 'reviewer_feature'].replace(skin_tone.group(), '')
+            skin_type = re.search(r'.+skin$', self.data.loc[i, 'reviewer_feature'])
+            if skin_type:
+                self.data.loc[i, 'skin_type'] = skin_type.group().replace(', ', '')
+                self.data.loc[i, 'skin_type'] = self.data.loc[i, 'skin_type'].replace(' skin', '')
+        
+        return self.data
+    
+    def to_pickle(self, file_name: str):
+        return self.data.to_pickle(path=f'data_cleaned/{file_name}.pkl')
