@@ -42,6 +42,9 @@ class scrapping_foundations():
         self.list_of_reviews = self.driver.find_elements_by_css_selector('div[data-comp="Review StyledComponent BaseComponent "]')
         # return list_of_reviews
 
+    def find_end_page(self):
+        return int(self.driver.find_element_by_css_selector('ul[data-comp = "Pagination StyledComponent BaseComponent "] :nth-child(8)').text)
+
     def append_new_data(self):
         shade = ""
         review_subject = ""
@@ -86,8 +89,8 @@ class scrapping_foundations():
             self.data = self.data.append(new_col,ignore_index=True)
         # return self.data
     
-    def clicking_and_scraping(self, starting_page: int = 0, ending_page: int = 201):
-        for n in tqdm(range(starting_page, ending_page)):
+    def clicking_and_scraping(self, starting_page: int = 0):
+        for n in tqdm(range(starting_page, self.find_end_page())):
             self.list_of_reviews = self.driver.find_elements_by_css_selector('div[data-comp="Review StyledComponent BaseComponent "]')
             self.append_new_data()
             self.driver.find_element_by_css_selector('button[aria-label="Next"]').click()
