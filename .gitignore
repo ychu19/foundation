@@ -127,3 +127,6 @@ dmypy.json
 # Data
 *.csv
 *.pkl
+*.json
+data/
+*.numbers
