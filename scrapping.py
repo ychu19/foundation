@@ -17,16 +17,21 @@ class scrapping_foundations():
     def __init__(self):
         reviewer_id = []
         rating = []
+        recommended = []
         review_subject = []
+        review_content = []
         reviewer_feature = []
         purchased_shade = []
+        date_of_review = []
 
         cols = {
-            "reviewer_id": reviewer_id, "rating": rating, "review_subject": review_subject,
-            "reviewer_feature": reviewer_feature, "purchased_shade": purchased_shade
+            "reviewer_id": reviewer_id, "rating": rating, "recommended": recommended,
+            "review_subject": review_subject, "review_content": review_content, 
+            "reviewer_feature": reviewer_feature, "purchased_shade": purchased_shade, 
+            "date_of_review": date_of_review
             }
         self.data = pd.DataFrame(cols)
-        self.list_of_revies = []
+        self.list_of_reviews = []
     
     def set_up_driver(self, url, popup_blocked = True, first_scroll: int = 2000, second_scroll: int = 3000):
         if popup_blocked:
@@ -60,18 +65,22 @@ class scrapping_foundations():
     def append_new_data(self):
         shade = ""
         review_subject = ""
+        review_content = ""
         reviewer_feature = ""
         reviewer_id = ""
         rating = int()
+        recommended = ""
+        date_of_review = ""
+
         for i in self.list_of_reviews:
-            
-            if i.find_elements(By.CSS_SELECTOR, 'strong[data-at="nickname"]') != []:
-                reviewer_id = i.find_elements(By.CSS_SELECTOR,'strong[data-at="nickname"]')[0].text
+
+            if i.find_elements(By.CSS_SELECTOR, 'a[data-at="nickname"]') != []:
+                reviewer_id = i.find_elements(By.CSS_SELECTOR,'a[data-at="nickname"]')[0].text
             else:
                 pass 
-            
-            if i.find_elements(By.CSS_SELECTOR,'strong[data-at="nickname"]+span') != []:
-                reviewer_feature = i.find_elements(By.CSS_SELECTOR,'strong[data-at="nickname"]+span')[0].text
+
+            if i.find_elements(By.CSS_SELECTOR,'a[data-at="nickname"]+span') != []:
+                reviewer_feature = i.find_elements(By.CSS_SELECTOR,'a[data-at="nickname"]+span')[0].text
             else:
                 pass
 
@@ -89,17 +98,40 @@ class scrapping_foundations():
                 shade = i.find_elements(By.CSS_SELECTOR, 'img[src*="https://www.sephora.com/productimages/"]+span')[0].text
             else:
                 shade = None
+            
+            if shade:
+                if i.find_elements(By.CSS_SELECTOR, 'h3+div+div') != []:
+                    review_content = i.find_element(By.CSS_SELECTOR, 'h3+div+div').text
+                else:
+                    pass
+            elif i.find_elements(By.CSS_SELECTOR, 'h3+div') != []:
+                review_content = i.find_element(By.CSS_SELECTOR, 'h3+div').text
+            else:
+                pass
+
+            if i.find_elements(By.CSS_SELECTOR, 'span[data-at="time_posted"]') != []:
+                date_of_review = i.find_element(By.CSS_SELECTOR, 'span[data-at="time_posted"]').text
+            else:
+                date_of_review = None
+
+            if 'Recommended' in i.find_element(By.CSS_SELECTOR, 'div').get_attribute('innerHTML'):
+                recommended = 1
+            else:
+                recommended = 0
 
             new_col = {
                 "reviewer_id": reviewer_id,
                 "rating": rating,
+                "recommended": recommended,
                 "review_subject": review_subject,
+                "review_content": review_content,
                 "reviewer_feature": reviewer_feature,
-                "purchased_shade": shade
+                "purchased_shade": shade,
+                "date_of_review": date_of_review
             }
-            # print(new_col)
+            
             self.data = self.data.append(new_col,ignore_index=True)
-        # return self.data
+        
     
     def clicking_and_scraping(self, starting_page: int = 0):
         if self.list_of_reviews != []:
@@ -107,6 +139,7 @@ class scrapping_foundations():
             for n in tqdm(range(starting_page, end_page)):
                 self.list_of_reviews = self.driver.find_elements(By.CSS_SELECTOR, 'div[data-comp="Review StyledComponent BaseComponent "]')
                 self.append_new_data()
+                sleep(randint(1,3))
                 self.driver.find_element(By.CSS_SELECTOR, 'button[aria-label="Next"]').click()
                 # self.driver.find_element(By.CSS_SELECTOR, 'button[aria-label="Next"]').click()
                 sleep(randint(2,6))
