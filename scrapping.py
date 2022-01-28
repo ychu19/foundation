@@ -48,6 +48,7 @@ class scrapping_foundations():
         self.driver.execute_script(f"window.scrollTo(0, {first_scroll})") 
         sleep(2)
         self.driver.execute_script(f"window.scrollTo(0, {second_scroll})")
+        sleep(1)
         if self.driver.find_elements(By.CSS_SELECTOR, 'ul[data-comp = "Pagination StyledComponent BaseComponent "]') != []:
             self.list_of_reviews = self.driver.find_elements(By.CSS_SELECTOR, 'div[data-comp="Review StyledComponent BaseComponent "]')
         else:
@@ -189,4 +190,4 @@ class cleaning_review_data():
         return self.data
     
     def to_pickle(self, file_name: str):
-        return self.data.to_pickle(path=f'data_cleaned/{file_name}.pkl')
+        return self.data.to_pickle(path=f'data_full_review_cleaned/{file_name}.pkl')
