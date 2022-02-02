@@ -3,6 +3,7 @@ from time import sleep # control the crawl rate to avoid hammering the servers w
 from random import randint
 from tqdm import tqdm
 import re
+import datetime
 
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
@@ -141,7 +142,8 @@ class scrapping_foundations():
                 self.list_of_reviews = self.driver.find_elements(By.CSS_SELECTOR, 'div[data-comp="Review StyledComponent BaseComponent "]')
                 self.append_new_data()
                 sleep(randint(1,3))
-                self.driver.find_element(By.CSS_SELECTOR, 'button[aria-label="Next"]').click()
+                button = self.driver.find_element(By.CSS_SELECTOR, 'button[aria-label="Next"]')
+                button.click()
                 # self.driver.find_element(By.CSS_SELECTOR, 'button[aria-label="Next"]').click()
                 sleep(randint(2,6))
         else:
@@ -189,5 +191,17 @@ class cleaning_review_data():
         
         return self.data
     
+    def parsing_date_of_review(self):
+        for i in self.data.index:
+            if re.match('.*ago*.', self.data.loc[i, 'date_of_review']):
+                self.data.loc[i, 'date_of_review'] = datetime.date.today() - datetime.timedelta(int(re.findall('([\s\d]+)', self.data.loc[i, 'date_of_review'])[0]))
+            
+        self.data['date_of_review'] = pd.to_datetime(self.data['date_of_review'])    
+        self.data['days_since_launch'] = self.data['date_of_review'] - min(self.data['date_of_review'])
+        self.data['days_since_launch'] = self.data['days_since_launch'].dt.days
+        self.data['days_since_launch_scaled'] = self.data['days_since_launch'] / max(self.data['days_since_launch'])
+
+        return self.data
+
     def to_pickle(self, file_name: str):
         return self.data.to_pickle(path=f'data_full_review_cleaned/{file_name}.pkl')
