@@ -42,6 +42,16 @@ import re
 # from scipy.stats import pearsonr, interval
 import scipy.stats as st
 
+class feature_engineering():
+    """
+    loads data from pickle by product_name.pkl
+    """
+
+    def __init__(self, product_name: str) -> None:
+        self.data = pd.read_pickle(f'data_full_review_cleaned/{product_name}')
+        
+
+
 def plot_countbar(data: pd.DataFrame, product: str, col1: str):
     """
     given a product, return and save a countplot with column "col1" in data
@@ -187,3 +197,24 @@ def plot_recision_recall_f1(predict_y, val_y, filename: str = "precision_recall_
     ax2.legend()
     ax2.set_xlabel("Thresholds")
     plt.savefig(f'plots/{filename}')
+
+def cross_one_hot_features(data, col1: str, col2: str, one_hot_col1: pd.DataFrame, one_hot_col2: pd.DataFrame):
+    total_col1_cat = len(data.groupby([col1],as_index=False).count()) 
+    total_col2_cat = len(data.groupby([col2],as_index=False).count()) 
+
+    data_cross = pd.DataFrame()
+    
+    i = 0 # col1
+    
+    while i <= total_col1_cat - 1:
+        j = 0 # col2
+        while j <= total_col2_cat - 1:
+            new_cross = one_hot_col1[:,i] * one_hot_col2[:,j]
+            new_cross = pd.Series(new_cross)
+            col1_name = data.groupby(['skin_tone'],as_index=False).count()['skin_tone'][i]
+            col2_name = data.groupby(['skin_type'],as_index=False).count()['skin_type'][j]
+            data_cross[f'{col1_name}_{col2_name}'] = new_cross
+            j += 1
+        i += 1
+        
+    return data_cross
