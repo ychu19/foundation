@@ -62,7 +62,9 @@ class cleaning_review_data():
         self.data['days_since_launch'] = self.data['days_since_launch'].dt.days
         self.data['days_since_launch_scaled'] = self.data['days_since_launch'] / max(self.data['days_since_launch'])
 
-        self.data = self.data.dropna(axis = 0, subset=['days_since_launch', 'days_since_launch_scaled'], how='any')
+        self.data['month_of_purchase'] = pd.DatetimeIndex(self.data['date_of_review']).month
+
+        self.data = self.data.dropna(axis = 0, subset=['days_since_launch', 'days_since_launch_scaled', 'month_of_purchase'], how='any')
 
         return self.data
     
