@@ -48,7 +48,14 @@ class cleaning_review_data():
             else:
                 self.data.loc[i, 'skin_tone_cat'] = 1 # ligher skin tone = 1
 
-        self.data = self.data.dropna(axis = 0, subset=['skin_tone', 'skin_type', 'hair_color', 'eye_color'], how='any')                
+        self.data = self.data.dropna(axis = 0, subset=['skin_tone', 'skin_type', 'hair_color', 'eye_color'], how='any')
+
+        self.data = self.data[self.data['skin_tone']!='']
+        self.data = self.data[self.data['skin_type']!='']
+        self.data = self.data[self.data['eye_color']!='']
+        self.data = self.data[self.data['hair_color']!='']
+        
+        self.data = self.data.reset_index(drop = True)                
 
         return self.data
     
@@ -99,4 +106,5 @@ class cleaning_review_data():
             
 
     def to_pickle(self):
+        self.filename = self.filename.replace('.csv', '') 
         return self.data.to_pickle(path=f'data_full_review_cleaned/{self.filename}.pkl')
