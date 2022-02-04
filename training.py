@@ -23,6 +23,7 @@ from sklearn.metrics import (
 )
 
 import os
+import re
 
 # from scipy.stats import pearsonr, interval
 import scipy.stats as st
@@ -48,48 +49,72 @@ class feature_engineering():
         ]
         self.X = self.data[self.all_features]
         self.y = self.data['recommended']
+        self.product_name = product_name.replace('.pkl', '')
         # perhaps some logging to know if there's class imbalance issues?
 
     def train_test_split(self, proportion: float = 0.3):
         self.train_X, self.val_X, self.train_y, self.val_y = train_test_split(self.X, self.y, test_size=proportion, random_state=0)
 
-    def one_hot_encoding(self, cols: list):
+    def one_hot_encoding(self, col: str):
         enc_rest = OneHotEncoder(sparse=False)
-
-        train_X_transform = enc_rest.fit_transform(self.train_X[cols])
-        val_X_transform = enc_rest.transform(self.val_X[cols])
+        
+        train_X_transform = enc_rest.fit_transform(self.train_X[[col]])
+        val_X_transform = enc_rest.transform(self.val_X[[col]])
 
         train_X_transform = pd.DataFrame(train_X_transform)
+        # print(train_X_transform.columns)
+        col_names_dict = dict()
+        
+        cols_cat = self.data.groupby([col],as_index=False).count()[col]
+        if re.match('^.*_color$', col):
+            color = re.split('_color', col)[0]
+            cols_cat = cols_cat.str.cat(pd.Series([color]*len(self.data)), sep = '_')
+
+        for col_idx in train_X_transform.columns:
+            col_names_dict[col_idx] = cols_cat[col_idx]
+        train_X_transform.rename(columns=col_names_dict, inplace=True)
+
         val_X_transform = pd.DataFrame(val_X_transform)
+        col_names_dict = dict()
+        for col_idx in val_X_transform.columns:
+            col_names_dict[col_idx] = cols_cat[col_idx]
+        val_X_transform.rename(columns=col_names_dict, inplace=True)
 
         return train_X_transform, val_X_transform
 
 
-    def cross_one_hot_features(self, one_hot_col1: pd.DataFrame, one_hot_col2: pd.DataFrame, data: pd.DataFrame, col1: str = 'skin_type', col2: str = 'skin_tone'):
+    def cross_one_hot_features(
+        self, 
+        one_hot_col1: pd.DataFrame, 
+        one_hot_col2: pd.DataFrame, 
+        data: pd.DataFrame, 
+        col1: str = 'skin_type', 
+        col2: str = 'skin_tone'
+        ):
         """
         given one-hot encoded feature 1 (one_hot_col1) and one-hot encoded feature 2 (one_hot_col1),
         returns a dataframe with crossed feature b/w one_hot_col1 and one_hot_col2
         columns of the returned dataframe are named by each of the crossed categories in col1 and col2 as "col1_col2"
         """
-        total_col1_cat = len(data.groupby([col1],as_index=False).count()) - 1
-        total_col2_cat = len(data.groupby([col2],as_index=False).count()) - 1
+        total_col1_cat = data.groupby([col1],as_index=False).count()[col1]
+        total_col2_cat = data.groupby([col2],as_index=False).count()[col2]
 
         data_cross = pd.DataFrame()
         
         i = 0 # col1
         
-        while i <= total_col1_cat:
+        while i <= len(total_col1_cat) - 1:
             j = 0 # col2
-            while j <= total_col2_cat:
-                new_cross = one_hot_col1[i] * one_hot_col2[j]
+            while j <= len(total_col2_cat) - 1:
+                col1_cat = total_col1_cat[i]
+                col2_cat = total_col2_cat[j]
+                new_cross = one_hot_col1[col1_cat] * one_hot_col2[col2_cat]
                 new_cross = pd.Series(new_cross)
-                col1_name = data.groupby([col1],as_index=False).count()[col1][i]
-                col2_name = data.groupby([col2],as_index=False).count()[col2][j]
-                data_cross[f'{col1_name}_{col2_name}'] = new_cross
+                data_cross[f'{col1_cat}_{col2_cat}'] = new_cross
                 j += 1
             i += 1
             
-        return data_cross
+        return data_cross.dropna(axis = 0)
     
     def concat_all_features(
             self, 
@@ -107,8 +132,8 @@ class feature_engineering():
     def feature_engineering(self):
         self.train_test_split()
         
-        self.skin_tone_one_hot_train, self.skin_tone_one_hot_val = self.one_hot_encoding(cols = ['skin_tone'])
-        self.skin_type_one_hot_train, self.skin_type_one_hot_val = self.one_hot_encoding(cols = ['skin_type'])
+        self.skin_tone_one_hot_train, self.skin_tone_one_hot_val = self.one_hot_encoding(col = 'skin_tone')
+        self.skin_type_one_hot_train, self.skin_type_one_hot_val = self.one_hot_encoding(col = 'skin_type')
         
         self.tone_type_cross_train = self.cross_one_hot_features(
             one_hot_col1= self.skin_type_one_hot_train, 
@@ -121,20 +146,23 @@ class feature_engineering():
             data = self.val_X
             )
 
-        self.hair_eye_one_hot_train, self.hair_eye_one_hot_val = self.one_hot_encoding(cols = ['hair_color', 'eye_color'])
+        self.hair_one_hot_train, self.hair_one_hot_val = self.one_hot_encoding(col = 'hair_color')
+        self.eye_one_hot_train, self.eye_one_hot_val = self.one_hot_encoding(col = 'eye_color')
 
         self.train_X_transformed = pd.concat([
             self.skin_tone_one_hot_train,
             self.skin_type_one_hot_train,
             self.tone_type_cross_train,
-            self.hair_eye_one_hot_train
+            self.hair_one_hot_train,
+            self.eye_one_hot_train
         ], axis= 1)
 
         self.val_X_transformed = pd.concat([
             self.skin_tone_one_hot_val,
             self.skin_type_one_hot_val,
             self.tone_type_cross_val,
-            self.hair_eye_one_hot_val
+            self.hair_one_hot_val,
+            self.eye_one_hot_val
         ], axis= 1)
 
         self.train_X_transformed, self.val_X_transformed = self.concat_all_features(self.train_X_transformed, self.val_X_transformed)
@@ -143,7 +171,18 @@ class feature_engineering():
 
 
 
-        
+def create_dir_for_product_if_not_existent(product, filename_):
+    """
+    check if directory 'plots/{product}' exists
+    if true, save the fig in the directory as {filename_}.jpeg
+    if false, create the directory and save the fig in the newly created directory
+    """
+    if os.path.isdir(f'plots/{product}'):
+        plt.savefig(fname = f'plots/{product}/{filename_}.jpeg')
+    else:
+        os.makedirs(f'plots/{product}')
+        plt.savefig(fname = f'plots/{product}/{filename_}.jpeg')
+
 
 
 def plot_countbar(data: pd.DataFrame, product: str, col1: str):
@@ -154,7 +193,19 @@ def plot_countbar(data: pd.DataFrame, product: str, col1: str):
     sns.countplot(x = data[col1], order = data[col1].value_counts().index)
     plt.xticks(rotation=90)
     plt.xlabel(f'Reviewers by {col1}')
-    plt.savefig(f'plots/{product}/reviewers_by_{col1}.jpeg')
+    plt.title(product.replace('_', ' '))
+    
+    create_dir_for_product_if_not_existent(product = product, filename_ = f'reviewers_by_{col1}')
+    # plt.savefig(f'plots/{product}/reviewers_by_{col1}.jpeg')
+
+def plot_line(data: pd.DataFrame, product: str, col1: str):
+    """
+    given a product, return and save a line plot with continuous var "col1" in data
+    """
+    plt.plot(data[col1])
+    plt.title(product.replace('_', ' '))
+
+    create_dir_for_product_if_not_existent(product = product, filename_ = f'reviewers_by_{col1}')
 
 
 def plot_diff_in_means(data: pd.DataFrame, product: str, col1: str, col2: str = 'rating'):
@@ -185,11 +236,9 @@ def plot_diff_in_means(data: pd.DataFrame, product: str, col1: str, col2: str = 
     for upper, mean, lower, y in zip(data_agg['upper'], data_agg['mean'], data_agg['lower'], data_agg[col1]):
         plt.plot((lower, mean, upper), (y, y, y), 'b.-')
     plt.yticks(range(len(n)), list(data_agg[col1]))
-    if os.path.isdir(f'plots/{product}'):
-        plt.savefig(fname = f'plots/{product}/{col1}_diff_in_means.jpeg')
-    else:
-        os.makedirs(f'plots/{product}')
-        plt.savefig(fname = f'plots/{product}/{col1}_diff_in_means.jpeg')
+
+    create_dir_for_product_if_not_existent(product = product, filename_ = f'{col1}_diff_in_means')
+    
     
 
 
@@ -227,11 +276,9 @@ def plot_cross_tab_heatmap(data: pd.DataFrame, product: str, col1: str, col2: st
             text = im.axes.text(j, i, round(col1_col2_crosstab.iloc[i, j], 2), kw)
             texts.append(text)
     plt.title(product.replace('_', ' '))
-    if os.path.isdir(f'plots/{product}'):
-        plt.savefig(fname = f'plots/{product}/{col1}_{col2}_crosstab_heatmap.jpeg')
-    else:
-        os.makedirs(f'plots/{product}')
-        plt.savefig(fname = f'plots/{product}/{col1}_{col2}_crosstab_heatmap.jpeg')
+
+    create_dir_for_product_if_not_existent(product = product, filename_ = f'{col1}_{col2}_crosstab_heatmap')
+
     
     
 
@@ -265,12 +312,11 @@ def plot_auc_roc(predict_y, val_y, product: str, model: str, filename: str = "au
     ax3.set_xlabel("False Positive Rate")
     ax3.set_ylabel("True Positive Rate")
     ax3.text(0.55,0.2, 'AUC = {}'.format(roc_auc_))
+    product_title = product.replace('_', ' ')
+    plt.title(f'{model} with {product_title}')
     
-    if os.path.isdir(f'plots/{product}'):
-        plt.savefig(f'plots/{product}/{model}_{filename}.jpeg')
-    else:
-        os.makedirs(f'plots/{product}')
-        plt.savefig(f'plots/{product}/{model}_{filename}.jpeg')
+    create_dir_for_product_if_not_existent(product = product, filename_ = f'{model}_{filename}')
+    
 
 
 def plot_recision_recall_f1(predict_y, val_y, product: str, model: str, filename: str = "precision_recall_f1"):
@@ -310,12 +356,12 @@ def plot_recision_recall_f1(predict_y, val_y, product: str, model: str, filename
     ax2.annotate("{}".format(round(f1_score_at_threshold,3)), (0.5, f1_score_at_threshold))
     ax2.legend()
     ax2.set_xlabel("Thresholds")
+
+    product_title = product.replace('_', ' ')
+    plt.title(f'{model} with {product_title}')
     
-    if os.path.isdir(f'plots/{product}'):
-        plt.savefig(f'plots/{product}/{model}_{filename}.jpeg')
-    else:
-        os.makedirs(f'plots/{product}')
-        plt.savefig(f'plots/{product}/{model}_{filename}.jpeg')
+    create_dir_for_product_if_not_existent(product = product, filename_ = f'{model}_{filename}')
+    
     
 
 def plot_predictions_by_scores(predict_y, val_y, product: str, model: str, bins: int = 20, filename: str = 'predictions_by_scores'):
@@ -325,11 +371,11 @@ def plot_predictions_by_scores(predict_y, val_y, product: str, model: str, bins:
     """
     plt.hist(predict_y[val_y == 1.0], bins = bins, color = 'g')
     plt.hist(predict_y[val_y == 0.0], bins = bins, color = 'r')
+
+    product_title = product.replace('_', ' ')
+    plt.title(f'{model} with {product_title}')
+
     plt.show()
 
-    if os.path.isdir(f'plots/{product}'):
-        plt.savefig(f'plots/{product}/{model}_{filename}.jpeg')
-    else:
-        os.makedirs(f'plots/{product}')
-        plt.savefig(f'plots/{product}/{model}_{filename}.jpeg')
+    create_dir_for_product_if_not_existent(product = product, filename_ = f'{model}_{filename}')
     
