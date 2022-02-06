@@ -5,6 +5,8 @@ from tqdm import tqdm
 import re
 import datetime
 
+from google.cloud import storage
+
 class cleaning_review_data():
 
     def __init__(self, filename: str) -> None:
@@ -13,6 +15,7 @@ class cleaning_review_data():
         self.data = self.data.dropna(axis = 0, subset=['reviewer_feature', 'reviewer_id', 'rating', 'date_of_review', 'review_content'], how='any')
         self.data = self.data.reset_index()
         self.filename = filename
+        self.storage_client = storage.Client.from_service_account_json('foundation-matching-9bb2587b610a.json')
         
     def parsing_reviewer_features(self):
         self.data['eye_color'] = ''
@@ -106,5 +109,16 @@ class cleaning_review_data():
             
 
     def to_pickle(self):
-        self.filename = self.filename.replace('.csv', '') 
+        self.filename = self.filename.replace('.csv', '')
+        self.data = self.data.iloc[:, 2:-1]
         return self.data.to_pickle(path=f'data_full_review_cleaned/{self.filename}.pkl')
+
+    def to_json(self):
+        self.filename = self.filename.replace('.csv', '')
+        self.data = self.data.iloc[:, 2:-1]
+        return self.data.to_json(f'data_full_review_cleaned/{self.filename}.json', orient='records', lines=True)
+
+    def to_gcs(self):
+        bucket = self.storage_client.get_bucket('foundation_reviews')
+        blob = bucket.blob(f'{self.filename}.json')
+        blob.upload_from_filename(f'data_full_review_cleaned/{self.filename}.json')
