@@ -74,7 +74,7 @@ class cleaning_review_data():
 
         self.data['month_of_purchase'] = pd.DatetimeIndex(self.data['date_of_review']).month
 
-        self.data = self.data.dropna(axis = 0, subset=['days_since_launch', 'days_since_launch_scaled', 'month_of_purchase'], how='any')
+        self.data = self.data.dropna(axis=0, subset=['days_since_launch', 'days_since_launch_scaled', 'month_of_purchase'], how='any')
 
         return self.data
     
@@ -106,16 +106,27 @@ class cleaning_review_data():
                     self.data.loc[i, 'gifted'] = 1
         
         return self.data
-            
 
     def to_pickle(self):
         self.filename = self.filename.replace('.csv', '')
-        self.data = self.data.iloc[:, 2:-1]
+        cols = ['reviewer_id', 'rating', 'recommended', 'review_subject',
+                'review_content', 'reviewer_feature', 'purchased_shade',
+                'date_of_review', 'eye_color', 'hair_color', 'skin_tone', 'skin_type',
+                'skin_tone_bin', 'skin_tone_cat', 'days_since_launch',
+                'days_since_launch_scaled', 'month_of_purchase', 'finish', 'coverage',
+                'shade_match', 'gifted']
+        self.data = self.data[cols]
         return self.data.to_pickle(path=f'data_full_review_cleaned/{self.filename}.pkl')
 
     def to_json(self):
         self.filename = self.filename.replace('.csv', '')
-        self.data = self.data.iloc[:, 2:-1]
+        cols = ['reviewer_id', 'rating', 'recommended', 'review_subject',
+                'review_content', 'reviewer_feature', 'purchased_shade',
+                'date_of_review', 'eye_color', 'hair_color', 'skin_tone', 'skin_type',
+                'skin_tone_bin', 'skin_tone_cat', 'days_since_launch',
+                'days_since_launch_scaled', 'month_of_purchase', 'finish', 'coverage',
+                'shade_match', 'gifted']
+        self.data = self.data[cols]
         return self.data.to_json(f'data_full_review_cleaned/{self.filename}.json', orient='records', lines=True)
 
     def to_gcs(self):
