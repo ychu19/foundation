@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, KFold
 from sklearn.preprocessing import OneHotEncoder
 
 from sklearn.metrics import (
@@ -14,7 +14,9 @@ from sklearn.metrics import (
     auc,
     precision_score,
     recall_score,
-    accuracy_score
+    accuracy_score,
+    roc_curve,
+    roc_auc_score
 )
 
 import os
@@ -27,8 +29,14 @@ import lightgbm as lgb
 import optuna
 from optuna.samplers import RandomSampler, TPESampler
 from sklearn.utils import shuffle
-from sklearn.metrics import mean_squared_error, log_loss, roc_auc_score, accuracy_score, precision_score, recall_score, \
-    f1_score
+
+from tqdm import tqdm
+
+import warnings
+
+warnings.filterwarnings('ignore')
+
+import logging
 
 
 def create_dir_for_product_if_not_existent(product, plots_or_models: str = 'plots'):
@@ -53,7 +61,7 @@ def create_dir_for_product_if_not_existent(product, plots_or_models: str = 'plot
             # model.save_model(fname=f'{plots_or_models}/{product}/{filename_}.model')
 
 
-class feature_engineering(object):
+class model_training(object):
     """
     loads data from pickle by product_name.json, split the data into train and validation sets,
     one-hot encode reviewer features (eye color, hair color, skin color, and skin tone),
@@ -63,7 +71,13 @@ class feature_engineering(object):
     return the training and validation sets
     """
 
-    def __init__(self, file_name: str) -> None:
+    def __init__(self, logger, file_name: str, random_seeds: int) -> None:
+        """
+        logger: for passing logger.info
+        file_name: a string ends with '.json'
+        random_seeds: an integer for random state across the class
+        """
+        self.logger = logger
         self.data = pd.read_json(f'data_full_review_cleaned/{file_name}', lines=True)
         self.all_features = [
             'hair_color', 'eye_color', 'skin_tone', 'skin_type',
@@ -77,17 +91,78 @@ class feature_engineering(object):
             'skin_tone_cat', 'finish', 'coverage', 'shade_match',
             'gifted', 'days_since_launch_scaled', 'month_of_purchase'
         ]
+        self.product_name = file_name.replace('.json', '')
+        self.random_state = random_seeds
         self.X = self.data[self.all_features]
         self.y = self.data['recommended']
-        self.product_name = file_name.replace('.json', '')
         # perhaps some logging to know if there's class imbalance issues?
+
+    ### for feature engineering ###
 
     def train_test_split(self, proportion: float = 0.3):
         """
         split training and validation sets given proportion using train_test_split() from scikit-learn
         """
         self.train_X, self.val_X, self.train_y, self.val_y = train_test_split(self.X, self.y, test_size=proportion,
-                                                                              random_state=0)
+                                                                              random_state=self.random_state)
+
+    def dropping_outlier_reviewers(self, cols=None):
+        """
+        Some reviewers can be considered outliers based on their features,
+        e.g., if only less than 10% of the reviewers in the dataset had gray hair, we drop these reviewers
+        I define outliers by (a) being less than 5% out of the whole dataset, and
+        (b) having less than 5 people in the validation set
+        This function drops these reviewers in both the training and validation sets after doing train_test_split
+        """
+        if cols is None:
+            cols = ['hair_color', 'eye_color', 'skin_tone']
+
+        for c in cols:
+            c_proportion = self.val_X.groupby([c]).count()['coverage'] / len(self.data)
+            outliers_proportion = c_proportion[c_proportion <= 0.05].index
+            # if only less than 10% of some reviewers in the validation set had a certain feature
+            # like if only 5 people in the validation set out of 100 people in the complete dataset had red hair
+            # we drop these people
+            c_count = self.val_X.groupby([c]).count()['coverage']
+            outliers_count = c_count[c_count < 5].index
+            # if only less than 5 reviewers in the validation set had a certain feature
+            # we drop these reviewers
+
+            if not outliers_proportion.empty or not outliers_count.empty:
+                self.logger.info(f'#### Removing outliers in {c} ####')
+                n_dropped = 0
+                if not outliers_count.empty:
+                    for i in outliers_count:
+                        val_indices = self.val_X[self.val_X[c] == i].index
+                        n_dropped += len(val_indices)
+                        self.val_X.drop(index=val_indices, inplace=True)
+                        self.val_y.drop(index=val_indices, inplace=True)
+
+                        train_indices = self.train_X[self.train_X[c] == i].index
+                        n_dropped += len(train_indices)
+                        self.train_X.drop(index=train_indices, inplace=True)
+                        self.train_y.drop(index=train_indices, inplace=True)
+                        # self.train_X = self.train_X[self.train_X[c] != i]
+                    self.logger.info(
+                        f'{n_dropped} reviewers with value {outliers_count.to_list()} in {c} are dropped'
+                    )
+
+                elif not outliers_proportion.empty:
+                    for i in outliers_proportion:
+                        val_indices = self.val_X[self.val_X[c] == i].index
+                        n_dropped += len(val_indices)
+                        self.val_X.drop(index=val_indices, inplace=True)
+                        self.val_y.drop(index=val_indices, inplace=True)
+
+                        train_indices = self.train_X[self.train_X[c] == i].index
+                        n_dropped += len(train_indices)
+                        self.train_X.drop(index=train_indices, inplace=True)
+                        self.train_y.drop(index=train_indices, inplace=True)
+                    self.logger.info(
+                        f'{n_dropped} reviewers with value {outliers_proportion.to_list()} in {c} are dropped'
+                    )
+
+        self.logger.info(f'N in train_X is now {len(self.train_X)}, N in val_X is now {len(self.val_X)}')
 
     def one_hot_encoding(self, col: str):
         """
@@ -95,20 +170,18 @@ class feature_engineering(object):
         rename the columns after one-hot encoding given the categories in col,
         and return training and validation sets as pd.DataFrame
         """
-        enc_rest = OneHotEncoder(sparse=False)
+        cols_cat = self.data.groupby([col], as_index=False).count()[col]
+        if re.match("^.*_color$", col):
+            color = re.split("_color", col)[0]
+            cols_cat = cols_cat.str.cat(pd.Series([color] * len(self.data)), sep='_')
+        # for column names after one-hot encoding
 
+        enc_rest = OneHotEncoder(sparse=False)
         train_X_transform = enc_rest.fit_transform(self.train_X[[col]])
         val_X_transform = enc_rest.transform(self.val_X[[col]])
 
         train_X_transform = pd.DataFrame(train_X_transform)
-        # print(train_X_transform.columns)
         col_names_dict = dict()
-
-        cols_cat = self.data.groupby([col], as_index=False).count()[col]
-        if re.match('^.*_color$', col):
-            color = re.split('_color', col)[0]
-            cols_cat = cols_cat.str.cat(pd.Series([color] * len(self.data)), sep='_')
-
         for col_idx in train_X_transform.columns:
             col_names_dict[col_idx] = cols_cat[col_idx]
         train_X_transform.rename(columns=col_names_dict, inplace=True)
@@ -134,8 +207,10 @@ class feature_engineering(object):
         returns a dataframe with crossed feature b/w one_hot_col1 and one_hot_col2
         columns of the returned dataframe are named by each of the crossed categories in col1 and col2 as "col1_col2"
         """
-        total_col1_cat = data.groupby([col1], as_index=False).count()[col1]
-        total_col2_cat = data.groupby([col2], as_index=False).count()[col2]
+        total_col1_cat = one_hot_col1.columns.to_list()
+        total_col2_cat = one_hot_col2.columns.to_list()
+        # total_col1_cat = data.groupby([col1], as_index=False).count()[col1]
+        # total_col2_cat = data.groupby([col2], as_index=False).count()[col2]
 
         data_cross = pd.DataFrame()
 
@@ -169,7 +244,11 @@ class feature_engineering(object):
         return train_X_transformed, val_X_transformed
 
     def feature_engineering(self):
+        """
+        put together all the steps to engineer features
+        """
         self.train_test_split()
+        self.dropping_outlier_reviewers()
 
         self.skin_tone_one_hot_train, self.skin_tone_one_hot_val = self.one_hot_encoding(col='skin_tone')
         self.skin_type_one_hot_train, self.skin_type_one_hot_val = self.one_hot_encoding(col='skin_type')
@@ -210,77 +289,65 @@ class feature_engineering(object):
 
         return None
 
+    ### for model training ###
 
-class training_models(feature_engineering):
-
-    def __init__(self, file_name, train_X_transformed, val_X_transformed, train_y, val_y):
-        feature_engineering.__init__(self, file_name)
-        self.train_X_transformed = train_X_transformed
-        self.val_X_transformed = val_X_transformed
-        self.train_y = train_y
-        self.val_y = val_y
-        self.product_name = file_name.replace('.json', '')
-
-    def create_DMatrix_for_xgb(self):
-        """
-        given the training and validation sets,
-        calculate 'balanced' class weights,
-        transform the training and validation sets into xgb.DMatrix
-        """
-        train_p_1 = len(self.train_y) / (len(self.train_y[self.train_y == 1]) * 2)
-        train_p_0 = len(self.train_y) / (len(self.train_y[self.train_y == 0]) * 2)
-
-        val_p_1 = len(self.val_y) / (len(self.val_y[self.val_y == 1]) * 2)
-        val_p_0 = len(self.val_y) / (len(self.val_y[self.val_y == 0]) * 2)
-
-        self.w_train = np.where(self.train_y == 0, train_p_0, train_p_1)
-        self.w_val = np.where(self.val_y == 0, val_p_0, val_p_1)
-
-        self.dtrain = xgb.DMatrix(self.train_X_transformed, label=self.train_y, weight=self.w_train)
-        self.dval = xgb.DMatrix(self.val_X_transformed, label=self.val_y, weight=self.w_val)
-
-        return self.dtrain, self.dval
-
-    def objective(
+    def get_cross_validated_accuracy(
             self,
-            trial: optuna.Trial
-    ) -> float:
+            # X_train: pd.DataFrame,
+            # y_train: pd.Series,
+            # X_valid: pd.DataFrame,
+            # y_valid: pd.Series,
+            trial: optuna.Trial,
+            hyperparams: dict,
+            NUM_ROUND: int
+    ) -> tuple:
         """
-        The objective function calculated while tuning hyperparameters.
-        The suggestions for the next set of hyperparameters on the next round is
-        performed using Tree Structured Parzen Estimation. The value being optimized
-        for is mse.
-        Returns the mse value for the trial calculated on the test set
+        This function takes in the X and y dataframes, splits the data into 5 folds,
+        trains a model by crossvalidating on all folds with the given hyperparams
+        an returns the crossvalidated_mse_score across all folds.
+
+        Also returns the model trained for this particular run
         """
-        hyperparams = {
-            'verbosity': 0,
-            'booster': trial.suggest_categorical("booster", ['gbtree', 'gblinear', 'dart']),
-            'objective': 'binary:logistic',
-            'eval_metric': 'auc',
-            'lambda': trial.suggest_loguniform('lambda', 1e-8, 1.0),
-            'alpha': trial.suggest_loguniform('alpha', 1e-8, 1.0),
-        }
+        kf = KFold(
+            n_splits=5,
+            random_state=self.random_state,
+            shuffle=True
+        )
 
-        if hyperparams["booster"] == "gbtree" or hyperparams["booster"] == "dart":
-            hyperparams["max_depth"] = trial.suggest_int("max_depth", 1, 15)
-            hyperparams["eta"] = trial.suggest_loguniform("eta", 1e-8, 1.0)
-            hyperparams["gamma"] = trial.suggest_loguniform("gamma", 1e-8, 1.0)
-            hyperparams["grow_policy"] = trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"])
+        self.train_X_transformed, self.train_y = shuffle(self.train_X_transformed,
+                                                         self.train_y,
+                                                         random_state=self.random_state
+                                                         )
+        accuracy_all_folds = []
+        for i, (train_index, val_index) in enumerate(kf.split(self.train_X_transformed)):
+            X_train_fold, X_val_fold = self.train_X_transformed.iloc[train_index], \
+                                       self.train_X_transformed.iloc[val_index]
+            y_train_fold, y_val_fold = self.train_y.iloc[train_index], \
+                                       self.train_y.iloc[val_index]
 
-        if hyperparams["booster"] == "dart":
-            hyperparams["sample_type"] = trial.suggest_categorical("sample_type", ["uniform", "weighted"])
-            hyperparams["normalize_type"] = trial.suggest_categorical("normalize_type", ["tree", "forest"])
-            hyperparams["rate_drop"] = trial.suggest_loguniform("rate_drop", 1e-8, 1.0)
-            hyperparams["skip_drop"] = trial.suggest_loguniform("skip_drop", 1e-8, 1.0)
+            # pruning_callback = optuna.integration.XGBoostPruningCallback(trial, "validation-auc")
+            bst = self.train_single_run(
+                train_X=X_train_fold,
+                train_y=y_train_fold,
+                val_X=X_val_fold,
+                val_y=y_val_fold,
+                parameters=hyperparams,
+                num_round=NUM_ROUND
+                # callback=pruning_callback
+            )
 
-        pruning_callback = optuna.integration.XGBoostPruningCallback(trial, "validation-auc")
-        bst = xgb.train(hyperparams, self.dtrain, evals=[(self.dval, "validation"), (self.dtrain, 'train')],
-                        callbacks=[pruning_callback], verbose_eval=False)
-        predicts = bst.predict(self.dval)
-        predict_y = np.rint(predicts)
-        accuracy = accuracy_score(self.val_y, predict_y)
+            # Make predictions with current set of hyperparams
+            predicts = bst.predict_proba(X_val_fold)[:, 1]
+            predict_y = np.rint(predicts)
+            accuracy = accuracy_score(y_val_fold, predict_y)
+            accuracy_all_folds.append(accuracy)
 
-        return accuracy
+        self.logger.info(">>> Trial parameters:")
+        self.logger.info(hyperparams)
+
+        self.logger.info(f"The values of accuracy for the different folds = {accuracy_all_folds}")
+        cross_validated_accuracy = np.mean(accuracy_all_folds)
+        return bst, cross_validated_accuracy
 
     def hyperparameter_tune(
             self,
@@ -308,7 +375,7 @@ class training_models(feature_engineering):
         )
 
         study.optimize(
-            lambda trial: self.objective(trial),
+            lambda trial: self.objective(trial, NUM_ROUND=10),
             # timeout=HYPERPARAM_TIMEOUT,
             n_trials=10,
             n_jobs=1
@@ -321,10 +388,61 @@ class training_models(feature_engineering):
 
         return initial_hyperparams
 
+    def objective(
+            self,
+            trial: optuna.Trial,
+            NUM_ROUND: int
+    ) -> float:
+        """
+        The objective function calculated while tuning hyperparameters.
+        The suggestions for the next set of hyperparameters on the next round is
+        performed using Tree Structured Parzen Estimation. The value being optimized
+        for is mse.
+        Returns the mse value for the trial calculated on the test set
+        """
+        hyperparams = {
+            'verbosity': 0,
+            'verbose_eval': False,
+            'booster': trial.suggest_categorical("booster", ['gbtree', 'gblinear', 'dart']),
+            'objective': 'binary:logistic',
+            # 'n_estimators': trial.suggest_int('n_estimators', 100, 500),
+            'eval_metric': 'auc',
+            'reg_lambda': trial.suggest_loguniform('lambda', 1e-8, 1.0),
+            'reg_alpha': trial.suggest_loguniform('alpha', 1e-8, 1.0)
+        }
+
+        if hyperparams["booster"] == "gbtree" or hyperparams["booster"] == "dart":
+            hyperparams["max_depth"] = trial.suggest_int("max_depth", 1, 15)
+            hyperparams["learning_rate"] = trial.suggest_loguniform("eta", 1e-8, 1.0)
+            hyperparams["gamma"] = trial.suggest_loguniform("gamma", 1e-8, 1.0)
+            hyperparams["grow_policy"] = trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"])
+
+        if hyperparams["booster"] == "dart":
+            hyperparams["sample_type"] = trial.suggest_categorical("sample_type", ["uniform", "weighted"])
+            hyperparams["normalize_type"] = trial.suggest_categorical("normalize_type", ["tree", "forest"])
+            hyperparams["rate_drop"] = trial.suggest_loguniform("rate_drop", 1e-8, 1.0)
+            hyperparams["skip_drop"] = trial.suggest_loguniform("skip_drop", 1e-8, 1.0)
+
+        _, cross_validated_accuracy = self.get_cross_validated_accuracy(
+            # X_train,
+            # y_train,
+            # X_valid,
+            # y_valid,
+            hyperparams=hyperparams,
+            NUM_ROUND=NUM_ROUND,
+            trial=trial
+        )
+        return cross_validated_accuracy
+
     def train_single_run(
             self,
+            train_X,
+            val_X,
+            train_y,
+            val_y,
             parameters: dict,
-            num_round: int
+            num_round: int,
+            callback=None
     ) -> xgb.train:
         """
         Accepts a set of hyperparameters, a training dataset and a parameters dict
@@ -335,30 +453,204 @@ class training_models(feature_engineering):
         Return a lightgbm.Booster object
         """
 
-        evallist = [(self.dval, 'eval'), (self.dtrain, 'train')]
-        model = xgb.train(parameters, self.dtrain, num_round, evallist, verbose_eval=False)
+        model = xgb.XGBClassifier(
+            **parameters,
+            random_state=self.random_state,
+            n_estimators=num_round,
+            scale_pos_weight=(len(self.y) - sum(self.y)) / sum(self.y),
+            use_label_encoder=False
+        )
+        # scale_pos_weight = total_negative_examples / total_positive_examples
+        evallist = [(val_X, val_y), (train_X, train_y)]
+        model_fit = model.fit(
+            X=train_X, y=train_y,
+            eval_set=evallist,
+            verbose=False,
+            callbacks=callback
+        )
 
-        return model
+        return model_fit
 
     def training_xgb_model(
             self,
             # N_TRIALS:int=10
     ):
-        self.dtrain, self.dval = self.create_DMatrix_for_xgb()
-
         params = self.hyperparameter_tune()
 
-        best_model = self.train_single_run(
+        self.best_model = self.train_single_run(
+            train_X=self.train_X_transformed,
+            train_y=self.train_y,
+            val_X=self.val_X_transformed,
+            val_y=self.val_y,
             parameters=params,
             num_round=10
         )
 
-        predicts = best_model.predict(self.dval)
-        # print(predicts)
-        self.predict_y = [round(value) for value in predicts]
-
         create_dir_for_product_if_not_existent(product=self.product_name, plots_or_models='models')
-        best_model.save_model(f'models/{self.product_name}/{self.product_name}_xgb.model')
+        self.best_model.save_model(f'models/{self.product_name}/{self.product_name}_xgb.model')
+
+    def thresholding(
+            self
+    ):
+        self.predict_y = self.best_model.predict_proba(self.val_X_transformed)[:, 1]
+        # print(predict_y)
+        # y_lr_post_probs = self.best_model.predict_proba(X_lr_train)
+
+        self.logger.info(f"ROC AUC score on test data is {roc_auc_score(self.val_y, self.predict_y)}")
+        # fpr, tpr, thresholds = roc_curve(self.val_y, predict_y)
+
+        self.metrics_dict = {
+            'ratio_positives': [],
+            'accuracy_scores': [],
+            'precision_scores': [],
+            'recall_scores': [],
+            'f1_scores': []
+        }
+        thresholds = np.linspace(0, 1, 101)
+        for thresh in tqdm(thresholds):
+            predict_y_binary = np.where(self.predict_y >= thresh, 1, 0)
+            self.metrics_dict['ratio_positives'].append(np.sum(predict_y_binary) / predict_y_binary.shape[0])
+            self.metrics_dict['accuracy_scores'].append(accuracy_score(self.val_y, predict_y_binary))
+            self.metrics_dict['precision_scores'].append(precision_score(self.val_y, predict_y_binary))
+            self.metrics_dict['recall_scores'].append(recall_score(self.val_y, predict_y_binary))
+            self.metrics_dict['f1_scores'].append(f1_score(self.val_y, predict_y_binary))
+
+        self.logger.info('#### Thresholding ####')
+        best_f1 = np.max(self.metrics_dict['f1_scores'])
+        best_f1_threshold = thresholds[np.argmax(self.metrics_dict['f1_scores'])]
+        self.logger.info(f"The best f1 score is {best_f1} which occurs at threshold {best_f1_threshold}")
+
+        best_precision = np.max(self.metrics_dict['precision_scores'])
+        best_precision_threshold = thresholds[np.argmax(self.metrics_dict['precision_scores'])]
+        self.logger.info(
+            f"The best precision score is {best_precision} which occurs at threshold {best_precision_threshold}"
+        )
+
+        best_recall = np.max(self.metrics_dict['recall_scores'])
+        best_recall_threshold = thresholds[np.argmax(self.metrics_dict['recall_scores'])]
+        self.logger.info(
+            f"The best recall score is {best_recall} which occurs at threshold {best_recall_threshold}"
+        )
+
+        self.best_f1_threshold = best_f1_threshold
+
+        return best_f1_threshold
+
+
+    def plot_auc_roc(
+            self,
+            # predict_y,
+            val_y,
+            product: str,
+            model: str,
+            filename: str = "auc_roc"):
+        """
+        given predicted probability (predict_y) and label (val_y), computes AUC-ROC across threshold and saves the figure by product and model
+        """
+
+        thresholds = np.linspace(0, 1, 10)
+        fpr = []
+        tpr = []
+
+        for threshold in thresholds:
+            predict_y_binary = np.where(self.predict_y >= threshold, 1, 0)
+
+            fp = np.sum((val_y == 0) & (predict_y_binary == 1))  # true value is 0 but predict to be 1
+            tp = np.sum((val_y == 1) & (predict_y_binary == 1))  # true value is 1 & predict to be 1
+
+            fn = np.sum((val_y == 1) & (predict_y_binary == 0))  # true value is 1 but predict to be 0
+            tn = np.sum((val_y == 0) & (predict_y_binary == 0))  # true value is 0 but predict to be 0
+
+            fpr.append(fp / (fp + tn))
+            tpr.append(tp / (tp + fn))
+
+            ## ROC & ROC-AUC
+        roc_auc_ = round(auc(fpr, tpr), 5)
+        fig3, ax3 = plt.subplots(1, 1)
+        ax3.plot(fpr, tpr, label="ROC")
+        ax3.plot([0, 1], [0, 1], 'k--')
+        ax3.set_xlabel("False Positive Rate")
+        ax3.set_ylabel("True Positive Rate")
+        ax3.text(0.55, 0.2, 'AUC = {}'.format(roc_auc_))
+        product_title = product.replace('_', ' ')
+        plt.title(f'{model} with {product_title}')
+
+        create_dir_for_product_if_not_existent(product=product, plots_or_models='plots')
+        plt.savefig(f'plots/{product}/{model}_{filename}.jpeg')
+
+    def plot_precision_recall_f1(
+            self,
+            # predict_y,
+            val_y,
+            model: str,
+            product: str,
+            filename: str = "precision_recall_f1"):
+        """
+        given predicted probability (predict_y) and label (val_y), plots precision, recall, and F1 scores across threshold
+        and saves the figure by product and model
+        """
+
+        thresholds = np.linspace(0, 1, 101)
+
+        # precisions = []
+        # recalls = []
+        # f1_scores = []
+        #
+        # self.metrics_dict
+        #
+        # for threshold in thresholds:
+        #     predict_y_binary = np.where(self.y_lr_pred_probs >= threshold, 1, 0)
+        #
+        #     precisions.append(precision_score(val_y, predict_y_binary))
+        #     recalls.append(recall_score(val_y, predict_y_binary))
+        #     f1_scores.append(f1_score(val_y, predict_y_binary))
+
+        precision_at_p5 = precision_score(val_y, np.where(self.predict_y >= 0.5, 1, 0))
+        recall_at_p5 = recall_score(val_y, np.where(self.predict_y >= 0.5, 1, 0))
+        f1_score_at_p5 = f1_score(val_y, np.where(self.predict_y >= 0.5, 1, 0))
+
+        ### plot precisions, recalls, and F1 scores across threshold ###
+        fig2, ax2 = plt.subplots(1, 1)
+        ax2.plot(thresholds, self.metrics_dict['precision_scores'], label="precision")
+        ax2.plot(thresholds, self.metrics_dict['recall_scores'], label="recall")
+        ax2.plot(thresholds, self.metrics_dict['f1_scores'], label="f1 score")
+        ax2.axvline(0.5, linestyle=':', color='r')
+        ax2.plot(0.5, precision_at_p5, "s")
+        ax2.annotate("{}".format(round(precision_at_p5, 3)), (0.5, precision_at_p5))
+        ax2.plot(0.5, recall_at_p5, "s")
+        ax2.annotate("{}".format(round(recall_at_p5, 3)), (0.5, recall_at_p5))
+        ax2.plot(0.5, f1_score_at_p5, "s")
+        ax2.annotate("{}".format(round(f1_score_at_p5, 3)), (0.5, f1_score_at_p5))
+        ax2.legend()
+        ax2.set_xlabel("Thresholds")
+
+        product_title = product.replace('_', ' ')
+        plt.title(f'{model} with {product_title}')
+
+        create_dir_for_product_if_not_existent(product=product, plots_or_models='plots')
+        plt.savefig(f'plots/{product}/{model}_{filename}.jpeg')
+
+    def plot_predictions_by_scores(
+            self,
+            # predict_y,
+            val_y,
+            product: str,
+            model: str,
+            bins: int = 20,
+            filename: str = 'predictions_by_scores'):
+        """
+        given predicted probability (predict_y) and label (val_y), plots positive and negative instances by predicted probability
+        green: label = 1; red: label = 0
+        """
+        fig1, ax1 = plt.subplots(1, 1)
+        ax1.hist(self.predict_y[val_y == 1.0], bins=bins, color='g')
+        ax1.hist(self.predict_y[val_y == 0.0], bins=bins, color='r')
+
+        product_title = product.replace('_', ' ')
+        plt.title(f'{model} with {product_title}')
+        # plt.show()
+        create_dir_for_product_if_not_existent(product=product, plots_or_models='plots')
+        plt.savefig(f'plots/{product}/{model}_{filename}.jpeg')
 
 
 def plot_countbar(data: pd.DataFrame, product: str, col1: str):
