@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% block head %}
+
+{% endblock %}
+
+{% block body %}
+<div class="features">
+<!--    <h1>{{features}}</h1>-->
+    <h1 style="text-align: center">Here are the foundations for you!</h1>
+
+
+    <table>
+        <tr>
+            <th>Foundations</th>
+            <th>Shades</th>
+
+        </tr>
+        {% for product in products %}
+            <td>{{ product }}</td>
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}

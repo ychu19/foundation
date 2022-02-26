@@ -13,6 +13,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+from google.cloud import storage
+
 class scrapping_foundations():
     
     def __init__(self):
@@ -151,3 +153,56 @@ class scrapping_foundations():
 
     def close_driver(self):
         self.driver.close()
+
+class scrapping_foundation_features(object):
+
+    def __init__(self, url: str, product_name: str):
+        self.url = url
+        self.product_name = product_name
+        self.product_features = []
+        self.product_description = []
+        self.storage_client = storage.Client.from_service_account_json('foundation-matching-9bb2587b610a.json')
+
+    def set_up_driver(self, popup_blocked=True, scroll: int = 600):
+        if popup_blocked:
+            geoBlocked = webdriver.FirefoxOptions()
+            geoBlocked.set_preference("geo.prompt.testing", True)
+            geoBlocked.set_preference("geo.prompt.testing.allow", False)
+            geoBlocked.set_preference("dom.push.enabled", False)
+            self.driver = webdriver.Firefox(options=geoBlocked)
+        else:
+            self.driver = webdriver.Firefox()
+
+        self.driver.get(self.url)
+        sleep(3)
+        self.driver.execute_script(f"window.scrollTo(0, {scroll})")
+
+    def scrap_product_description_and_features(self):
+        if self.driver.find_elements(By.XPATH, '//h2[contains(text(), "Highlights")]/following-sibling::div') != []:
+            self.product_features = self.driver.find_elements(By.XPATH, '//h2[contains(text(), "Highlights")]/following-sibling::div')[0].text
+        else:
+            pass
+        if self.driver.find_elements(By.XPATH, '//h2[contains(text(), "About the Product")]/following-sibling::div') != []:
+            self.product_description = self.driver.find_elements(By.XPATH, '//h2[contains(text(), "About the Product")]/following-sibling::div')[1].text
+        else:
+            pass
+
+    def save_data_to_json(self):
+        cols = {
+            "brand_product": self.product_name,
+            "product_features": self.product_features,
+            "product_description": self.product_description
+        }
+        self.data = pd.DataFrame([cols])
+        self.data.to_json(f'data_foundation_features/{self.product_name}_features.json', orient='records', lines=True)
+
+    def push_data_to_gsc(self):
+        bucket = self.storage_client.get_bucket('foundation_features')
+        blob = bucket.blob(f'{self.product_name}.json')
+        blob.upload_from_filename(f'data_foundation_features/{self.product_name}_features.json')
+
+    def close_driver(self):
+        self.driver.close()
+
+
+
