@@ -5,20 +5,21 @@
 {% endblock %}
 
 {% block body %}
-<div class="features">
-<!--    <h1>{{features}}</h1>-->
+<div class="container">
     <h1 style="text-align: center">Here are the foundations for you!</h1>
-    <h2>
-        {% for product, shade in products_shades %}
-        <h3>{{ product }}></h3>
+    <div class="row">
+    <!--    <h1>{{features}}</h1>-->
+        {% for product, shade, url in products_shades %}
+            <div class="col">
+                <img width="350pt" src="{{ url }}">
+                {{ product }}
+            </div>
 
-
-        <h4>{{ shade }}</h4>
-
-
+            <div class="col">
+                {{ shade }}
+            </div>
         {% endfor %}
-    </h2>
 
-
+    </div>
 </div>
 {% endblock %}

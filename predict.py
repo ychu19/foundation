@@ -254,7 +254,7 @@ def predict_from_user_input(input: dict):
             scores.loc[i, 'scores'] = results
 
     scores = scores.sort_values('scores', ascending=False).reset_index(drop=True)
-    scores = scores.iloc[0:10]
+    scores = scores.iloc[0:5]
     return scores
 
 def get_longest_dict(col: str):
@@ -278,6 +278,11 @@ def get_longest_dict(col: str):
         for j in col_names_dict_for_i.values():
             if j not in col_names_dict.values():
                 col_names_dict[len(col_names_dict)] = j
+    if 'color' in col:
+        part = col.split('_')[0]
+        part = '_' + part
+        for key, value in col_names_dict.items():
+            col_names_dict[key] = value.replace(part, '')
 
     return col_names_dict
 
@@ -306,6 +311,10 @@ def filter_shade(input: dict, brand_product: str):
 
     return list_of_shades
 
-
+def extracting_img_src(brand_product: str):
+    foundation_features_parsed_url = pd.read_csv('foundation_features_parsed_url.csv')
+    img_src = foundation_features_parsed_url.loc[
+        foundation_features_parsed_url['brand_product'] == f'{brand_product}', 'img_src'].values[0]
+    return img_src
 
 

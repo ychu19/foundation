@@ -5,46 +5,60 @@
 {% endblock %}
 
 {% block body %}
-<div class="content">
+<div class="container">
+    <div class="content">
 
-    <h1 style="text-align: center">Foundation Recommender</h1>
-
-
-    <label>Give me your features in order: hair color, eye color, skin tone, and skin type</label>
-    <form action="http://127.0.0.1:5000/predict/" method="GET" >
-        <select name="hair">
-            {% for hair in hairs.values() %}
-            <option value="{{hair}}" SELECTED>
-                {{hair}}
-            </option>
-            {% endfor %}
-
-        </select>
-        <select name="eye">
-            {% for eye in eyes.values() %}
-            <option value="{{eye}}" SELECTED>
-                {{eye}}
-            </option>
-            {% endfor %}
-        </select>
-        <select name="tone">
-            {% for tone in tones.values() %}
-            <option value="{{tone}}" SELECTED>
-                {{tone}}
-            </option>
-            {% endfor %}
-        </select>
-        <select name="type">
-            {% for type in types.values() %}
-            <option value="{{type}}" SELECTED>
-                {{type}}
-            </option>
-            {% endfor %}
-        </select>
-        <input type="submit" value="submit">
-    </form>
+        <h1 style="text-align: center">Foundation Recommender</h1>
 
 
-<!--    <p name="output">test</p>-->
+        <label>Give me your features in order: hair color, eye color, skin tone, and skin type</label>
+        <br>
+        <form action="http://127.0.0.1:5000/predict/" method="GET" >
+
+            <select class="form-select" name="eye">
+                <option value="0" SELECTED>Eye color</option>
+                {% for eye in eyes.values() %}
+                    <option value="{{eye}}">
+                        {{eye}}
+                    </option>
+                {% endfor %}
+            </select>
+
+            <select class="form-select" name="tone">
+                <option value="0" selected>Skin Tone</option>
+                {% for tone in tones.values() %}
+                    <option value="{{tone}}">
+                        {{tone}}
+                    </option>
+                {% endfor %}
+            </select>
+
+            <select class="form-select" name="hair">
+                <option value="0" SELECTED>Hair color</option>
+                {% for hair in hairs.values() %}
+                    <option value="{{hair}}">
+                        {{hair}}
+                    </option>
+                {% endfor %}
+            </select>
+
+            <select class="form-select" name="type">
+                <option value="0" SELECTED>Skin Type</option>
+                {% for type in types.values() %}
+                    <option value="{{type}}">
+                        {{type}}
+                    </option>
+                {% endfor %}
+            </select>
+
+            <input type="submit" value="submit">
+        </form>
+
+
+
+
+
+    <!--    <p name="output">test</p>-->
+    </div>
 </div>
 {% endblock %}

@@ -204,5 +204,37 @@ class scrapping_foundation_features(object):
     def close_driver(self):
         self.driver.close()
 
+class scrapping_foundation_images(object):
+
+    def __init__(self, url: str, product_name: str):
+        self.url = url
+        self.product_name = product_name
+        self.img_url = str()
+
+    def set_up_driver(self, popup_blocked=True, scroll: int = 600):
+        if popup_blocked:
+            geoBlocked = webdriver.FirefoxOptions()
+            geoBlocked.set_preference("geo.prompt.testing", True)
+            geoBlocked.set_preference("geo.prompt.testing.allow", False)
+            geoBlocked.set_preference("dom.push.enabled", False)
+            self.driver = webdriver.Firefox(options=geoBlocked)
+        else:
+            self.driver = webdriver.Firefox()
+
+        self.driver.get(self.url)
+
+    def scrap_and_save_foundation_image(self):
+        img = self.driver.find_elements(
+            By.CSS_SELECTOR,
+            'li.css-1xhaj19:nth-child(1) > button:nth-child(1) > svg:nth-child(1) > foreignObject:nth-child(1) > img:nth-child(1)'
+        )
+        if img != []:
+            src = img[0].get_attribute('src')
+            return src
+        else:
+            return ''
+
+    def close_driver(self):
+        self.driver.close()
 
 

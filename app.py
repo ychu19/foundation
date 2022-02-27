@@ -2,7 +2,7 @@ from flask import Flask, render_template, url_for, request, redirect
 from flask_sqlalchemy import SQLAlchemy
 import pandas as pd
 import xgboost as xgb
-from predict import predict_from_user_input, get_longest_dict, filter_shade
+from predict import predict_from_user_input, get_longest_dict, filter_shade, extracting_img_src
 import os
 from datetime import datetime
 
@@ -90,6 +90,7 @@ def predict():
     if all([i == '' for i in products]):
         return "Sorry, we don't have enough information to make recommendation for you."
     else:
+
         shade_data = pd.DataFrame()
         shade_data['brand_product'] = str()
         shade_data['shades'] = str()
@@ -97,13 +98,15 @@ def predict():
         for idx in range(len(scores)):
             brand_product = scores.loc[idx, 'brand_product']
             shades = filter_shade(input=features_dict, brand_product=brand_product)
-            cols = {'brand_product': brand_product, 'shades': shades}
+            urls = extracting_img_src(brand_product=brand_product)
+            cols = {'brand_product': brand_product.replace('_', ' '), 'shades': shades, 'urls': urls}
             temp_data = pd.DataFrame([cols])
             shade_data = pd.concat([shade_data, temp_data], axis=0, ignore_index=True)
 
         products = shade_data['brand_product']
         shades = shade_data['shades']
-        products_shades = zip(products, shades)
+        urls = shade_data['urls']
+        products_shades = zip(products, shades, urls)
 
         return render_template('predict.html', products_shades=products_shades)
 
