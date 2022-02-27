@@ -8,17 +8,17 @@
 <div class="features">
 <!--    <h1>{{features}}</h1>-->
     <h1 style="text-align: center">Here are the foundations for you!</h1>
+    <h2>
+        {% for product, shade in products_shades %}
+        <h3>{{ product }}></h3>
 
 
-    <table>
-        <tr>
-            <th>Foundations</th>
-            <th>Shades</th>
+        <h4>{{ shade }}</h4>
 
-        </tr>
-        {% for product in products %}
-            <td>{{ product }}</td>
+
         {% endfor %}
-    </table>
+    </h2>
+
+
 </div>
 {% endblock %}

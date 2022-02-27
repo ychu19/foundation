@@ -122,6 +122,7 @@ class feature_engineering(object):
                 return test_X_transform
 
             else:
+                # print(f"no such category for {col}")
                 return pd.DataFrame()
         else:
             # for columns other than hair or eye colors
@@ -254,4 +255,57 @@ def predict_from_user_input(input: dict):
 
     scores = scores.sort_values('scores', ascending=False).reset_index(drop=True)
     scores = scores.iloc[0:10]
-    return scores.to_dict()
+    return scores
+
+def get_longest_dict(col: str):
+    """
+    given a feature (col) from all the review data, return the longest dictionary for all possible value for the feature
+    """
+    list_of_foundation_names = []
+    for file in os.listdir('models/'):
+        list_of_foundation_names.append(os.path.join(file))
+    list_of_foundation_names = sorted(list_of_foundation_names)[1:]
+
+    col_names_dict = dict()
+
+    for i in range(len(list_of_foundation_names)):
+        with open(
+            f'models/{list_of_foundation_names[i]}/col_names_{list_of_foundation_names[i]}_{col}.pickle',
+            'rb'
+        ) as f:
+            col_names_dict_for_i = pickle.load(f)
+
+        for j in col_names_dict_for_i.values():
+            if j not in col_names_dict.values():
+                col_names_dict[len(col_names_dict)] = j
+
+    return col_names_dict
+
+
+def filter_shade(input: dict, brand_product: str):
+    training_data = pd.read_json(f'data_full_review_cleaned/{brand_product}.json', lines=True)
+    training_data = training_data[training_data['rating'] == 5]
+
+    # first filter through skin tone
+    tone_data = training_data[training_data['skin_tone'] == input['skin_tone']]
+    hair_data = tone_data[tone_data['hair_color'] == input['hair_color']]
+    eye_data = hair_data[hair_data['eye_color'] == input['eye_color']]
+
+    if len(eye_data['purchased_shade'].unique()) > 3:
+        eye_data = eye_data.groupby('purchased_shade', as_index=False).count().sort_values('brand_product',
+                                                                                           ascending=False)[:3]
+        list_of_shades = eye_data['purchased_shade']
+    elif len(hair_data['purchased_shade'].unique()) > 3:
+        hair_data = hair_data.groupby('purchased_shade', as_index=False).count().sort_values('brand_product',
+                                                                                             ascending=False)[:3]
+        list_of_shades = hair_data['purchased_shade']
+    else:
+        tone_data = tone_data.groupby('purchased_shade', as_index=False).count().sort_values('brand_product',
+                                                                                             ascending=False)[:3]
+        list_of_shades = tone_data['purchased_shade']
+
+    return list_of_shades
+
+
+
+
