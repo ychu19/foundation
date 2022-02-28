@@ -5,18 +5,25 @@
 {% endblock %}
 
 {% block body %}
-<div class="container">
-    <h1 style="text-align: center">Here are the foundations for you!</h1>
+<div class="container col-11 bg-white my-md-3 py-md-4 px-md-4">
+<!--    <h2 style="text-align: center">You will like these foundations...</h2>-->
     <div class="row">
-    <!--    <h1>{{features}}</h1>-->
-        {% for product, shade, url in products_shades %}
-            <div class="col">
-                <img width="350pt" src="{{ url }}">
-                {{ product }}
-            </div>
-
-            <div class="col">
-                {{ shade }}
+        {% for product, shade, src, url, score in products_shades %}
+            <div class="col-sm-3">
+                <div class="card"  style="width: 18rem;">
+                    <img class="card-img-top" width="350pt" src="{{ src }}">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ product }}</h5>
+                        {% if score >= 90 %}
+                            <h6 class="card-subtitle">Matching score: {{ score }}%</h6>
+                        {% endif %}
+                        {% for s in shade %}
+                            <p class="card-text">with shades:</p>
+                            <p class="card-text">{{ s }}</p>
+                        {% endfor %}
+                        <a href="{{ url }}" class="btn btn-primary">Visit Sephora</a>
+                    </div>
+                </div>
             </div>
         {% endfor %}
 

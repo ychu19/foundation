@@ -2,7 +2,7 @@ from flask import Flask, render_template, url_for, request, redirect
 from flask_sqlalchemy import SQLAlchemy
 import pandas as pd
 import xgboost as xgb
-from predict import predict_from_user_input, get_longest_dict, filter_shade, extracting_img_src
+from predict import predict_from_user_input, get_longest_dict, filter_shade, extracting_img_src, extracting_url
 import os
 from datetime import datetime
 
@@ -97,16 +97,27 @@ def predict():
 
         for idx in range(len(scores)):
             brand_product = scores.loc[idx, 'brand_product']
+            proba = scores.loc[idx, 'scores']
             shades = filter_shade(input=features_dict, brand_product=brand_product)
-            urls = extracting_img_src(brand_product=brand_product)
-            cols = {'brand_product': brand_product.replace('_', ' '), 'shades': shades, 'urls': urls}
+            srcs = extracting_img_src(brand_product=brand_product)
+            urls = extracting_url(brand_product=brand_product)
+            cols = {
+                'brand_product': brand_product.replace('_', ' '),
+                'scores': round(proba*100, 1),
+                'shades': shades,
+                'srcs': srcs,
+                'urls': urls
+            }
             temp_data = pd.DataFrame([cols])
             shade_data = pd.concat([shade_data, temp_data], axis=0, ignore_index=True)
 
         products = shade_data['brand_product']
         shades = shade_data['shades']
+        srcs = shade_data['srcs']
         urls = shade_data['urls']
-        products_shades = zip(products, shades, urls)
+        scores = shade_data['scores']
+
+        products_shades = zip(products, shades, srcs, urls, scores)
 
         return render_template('predict.html', products_shades=products_shades)
 
