@@ -254,7 +254,7 @@ def predict_from_user_input(input: dict):
             scores.loc[i, 'scores'] = results
 
     scores = scores.sort_values('scores', ascending=False).reset_index(drop=True)
-    scores = scores.iloc[0:5]
+    scores = scores.iloc[0:4]
     return scores
 
 def get_longest_dict(col: str):
@@ -309,7 +309,7 @@ def filter_shade(input: dict, brand_product: str):
                                                                                              ascending=False)[:3]
         list_of_shades = tone_data['purchased_shade']
 
-    return list_of_shades
+    return list_of_shades.to_list()
 
 def extracting_img_src(brand_product: str):
     foundation_features_parsed_url = pd.read_csv('foundation_features_parsed_url.csv')
@@ -317,4 +317,9 @@ def extracting_img_src(brand_product: str):
         foundation_features_parsed_url['brand_product'] == f'{brand_product}', 'img_src'].values[0]
     return img_src
 
+def extracting_url(brand_product: str):
+    foundation_features_parsed_url = pd.read_csv('foundation_features_parsed_url.csv')
+    url = foundation_features_parsed_url.loc[
+        foundation_features_parsed_url['brand_product'] == f'{brand_product}', 'url'].values[0]
+    return url
 
