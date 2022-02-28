@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+
+{% block head %}
+
+{% endblock %}
+
+{% block body %}
+<div class="container">
+    <h1 style="text-align: center">Here are the foundations for you!</h1>
+    <div class="row">
+    <!--    <h1>{{features}}</h1>-->
+        {% for product, shade, url in products_shades %}
+            <div class="col">
+                <img width="350pt" src="{{ url }}">
+                {{ product }}
+            </div>
+
+            <div class="col">
+                {{ shade }}
+            </div>
+        {% endfor %}
+
+    </div>
+</div>
+{% endblock %}
