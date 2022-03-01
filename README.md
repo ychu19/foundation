@@ -1,5 +1,4 @@
-## Project for Foundation Recommendation
-(still need a name!)
+## The FoundationFinder
 
 To collect data, I am scrapping review data from Sephora.com
 
