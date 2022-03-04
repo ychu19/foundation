@@ -26,7 +26,8 @@ The app also has a link beneath each foundation that takes the users to the Seph
 
 ### Data Collection
 
-I used `Selenium` with `python` and scraped 120K reviews and information about 88 foundations from Sephora
+I used `Selenium` with `python` and scraped 120K reviews and information about 88 foundations from Sephora. A typical review looks like this:
+
 <img src="https://github.com/ychu19/foundation/blob/main/img/example_review.jpg" width=800px>
 
 Information scraped:
