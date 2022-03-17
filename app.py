@@ -1,14 +1,22 @@
-from flask import Flask, render_template, url_for, request, redirect
+from flask import Flask, render_template, url_for, request, redirect, session
 from flask_sqlalchemy import SQLAlchemy
 import pandas as pd
 import xgboost as xgb
-from predict import predict_from_user_input, get_longest_dict, filter_shade, extracting_img_src, extracting_url
+from predict import (
+    predict_from_user_input,
+    get_longest_dict,
+    filter_shade,
+    extracting_img_src,
+    extracting_url,
+    candidate_generation
+)
 import os
 from datetime import datetime
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test.db'
-db = SQLAlchemy(app)
+app.config['SECRET_KEY'] = 'no_secret'
+# db = SQLAlchemy(app)
 
 # class Todo(db.Model):
 #     id = db.Column(db.Integer, primary_key=True)
@@ -25,15 +33,48 @@ def index():
         hairs = get_longest_dict(col='hair_color')
         # hairs = {key: val for key, val in hairs.items() if val != 'Red_hair'}
         eyes = get_longest_dict(col='eye_color')
-        tones = get_longest_dict(col='skin_tone')
+        # tones = get_longest_dict(col='skin_tone')
+        tones = ['Ebony', 'Deep', 'Dark', 'Olive', 'Medium', 'Fair', 'Light', 'Porcelain']
+        # tones_img = [
+        #     'https://www.sephora.com/productimages/sku/s2513869+sw.jpg',
+        #     'https://www.sephora.com/productimages/sku/s2513885+sw.jpg',
+        #     'https://www.sephora.com/productimages/sku/s2513919+sw.jpg',
+        #     'https://www.sephora.com/productimages/sku/s2513984+sw.jpg',
+        #     'https://www.sephora.com/productimages/sku/s2514123+sw.jpg',
+        #     'https://www.sephora.com/productimages/sku/s2514149+sw.jpg',
+        #     'https://www.sephora.com/productimages/sku/s2514180+sw.jpg',
+        #     'https://www.sephora.com/productimages/sku/s2514255+sw.jpg'
+        # ]
+        # tones = zip(tones, tones_img)
         types = get_longest_dict(col='skin_type')
         return render_template('index.html', hairs=hairs, eyes=eyes, tones=tones, types=types)
 
-    else:
-        features = request.form['hair']
-        # return redirect('/predict.html', id='content')
-        return redirect(url_for('.predict', features=features))
+    # else:
+    #     features = request.form['hair']
+    #     # return redirect('/predict.html', id='content')
+    #     return redirect(url_for('.predict', features=features))
 
+@app.route('/candidate/', methods=['GET'])
+def candidate():
+    if request.method == 'GET':
+        eye = request.args.get('eye').replace('_eye', '')
+        hair = request.args.get('hair').replace('_hair', '')
+        tone = request.args.get('tone')
+        type = request.args.get('type')
+        finishes = ['natural', 'matte', 'radiant']
+        coverages = ['medium', 'full', 'sheer', 'light']
+        session['eye'] = eye
+        session['hair'] = hair
+        session['skin_tone'] = tone
+        session['skin_type'] = type
+        # selected_finish = request.form['finish']
+
+        # return redirect(url_for('/predict'))
+        return render_template(
+            'candidate.html',
+            finishes=finishes, coverages=coverages,
+            type=type, tone=tone, hair=hair, eye=eye
+        )
 
 
     # if request.method == 'POST':
@@ -62,11 +103,17 @@ def index():
 #
 @app.route('/predict/', methods=['GET'])
 def predict():
+    candidate_dict = dict()
+    candidate_dict['finish'] = request.args.get('finish')
+    candidate_dict['coverage'] = request.args.get('coverage')
+    candidate_dict['skin_type'] = session.get('skin_type')
+    candidate_list = candidate_generation(candidate_dict)
+    print(candidate_dict)
     features_dict = dict()
-    features_dict['hair_color'] = request.args.get('hair').replace('_hair', '')
-    features_dict['eye_color'] = request.args.get('eye').replace('_eye', '')
-    features_dict['skin_tone'] = request.args.get('tone')
-    features_dict['skin_type'] = request.args.get('type')
+    features_dict['skin_tone'] = session.get('skin_tone')
+    features_dict['skin_type'] = session.get('skin_type')
+    features_dict['hair_color'] = session.get('hair')
+    features_dict['eye_color'] = session.get('eye')
     # features = request.args.get('hair')
     features_dict['finish'] = 1
     features_dict['coverage'] = 1
@@ -85,7 +132,7 @@ def predict():
     #     "days_since_launch_scaled", "month_of_purchase", "skin_tone_cat"
     # ]]
     # features = features.to_dict()
-    scores = predict_from_user_input(features_dict)
+    scores = predict_from_user_input(features_dict, candidate_list)
     products = scores['brand_product'].to_dict().values()
     if all([i == '' for i in products]):
         return "Sorry, we don't have enough information to make recommendation for you."
@@ -118,7 +165,7 @@ def predict():
         scores = shade_data['scores']
 
         products_shades = zip(products, shades, srcs, urls, scores)
-
+        print(scores)
         return render_template('predict.html', products_shades=products_shades)
 
     # task = Todo.query.get_or_404(id)

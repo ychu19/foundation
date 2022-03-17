@@ -228,29 +228,42 @@ class feature_engineering(object):
 
             return self.test_X_transformed
 
-def predict_from_user_input(input: dict):
-    list_of_foundation_names = []
-    for file in os.listdir('models/'):
-        list_of_foundation_names.append(os.path.join(file))
-    list_of_foundation_names = sorted(list_of_foundation_names)[1:]
+
+def candidate_generation(input: dict):
+    foundations = pd.read_csv("foundation_features_parsed.csv")
+    skin_type = 'skin_type_' + input['skin_type'].lower()
+    coverage = input['coverage'].lower() + '_coverage'
+    finish = input['finish'].lower() + '_finish'
+
+    skin_type_dat = foundations[foundations[f'{skin_type}'] == 1]
+    coverage_dat = skin_type_dat[skin_type_dat[f'{coverage}'] == 1]
+    finish_dat = coverage_dat[coverage_dat[f'{finish}'] == 1]
+
+    return finish_dat['brand_product'].tolist()
+
+def predict_from_user_input(input: dict, candidate_list: list):
+    # list_of_foundation_names = []
+    # for file in os.listdir('models/'):
+    #     list_of_foundation_names.append(os.path.join(file))
+    # list_of_foundation_names = sorted(list_of_foundation_names)[1:]
     # list_of_foundation_names = list_of_foundation_names[:5]
 
     scores_cols = {'brand_product': str(), 'scores': float()}
     scores = pd.DataFrame([scores_cols])
 
-    for i in range(len(list_of_foundation_names)):
+    for i in range(len(candidate_list)):
 
         new_instance = feature_engineering(
-            product_name=list_of_foundation_names[i],
+            product_name=candidate_list[i],
             input_dict=input
         )
         new_data = new_instance.feature_engineering()
 
         if not new_data.empty:
             model = xgb.XGBClassifier(objective='binary:logistic', use_label_encoder=False)
-            model.load_model(f'models/{list_of_foundation_names[i]}/{list_of_foundation_names[i]}_xgb.model')
+            model.load_model(f'models/{candidate_list[i]}/{candidate_list[i]}_xgb.model')
             results = model.predict_proba(new_data)[:, 1]
-            scores.loc[i, 'brand_product'] = list_of_foundation_names[i]
+            scores.loc[i, 'brand_product'] = candidate_list[i]
             scores.loc[i, 'scores'] = results
 
     scores = scores.sort_values('scores', ascending=False).reset_index(drop=True)
@@ -285,6 +298,7 @@ def get_longest_dict(col: str):
             col_names_dict[key] = value.replace(part, '')
 
     return col_names_dict
+
 
 
 def filter_shade(input: dict, brand_product: str):
@@ -322,4 +336,5 @@ def extracting_url(brand_product: str):
     url = foundation_features_parsed_url.loc[
         foundation_features_parsed_url['brand_product'] == f'{brand_product}', 'url'].values[0]
     return url
+
 

@@ -15,7 +15,7 @@
         <label>Tell me about yourself...</label>
         <br>
         <br>
-        <form action="http://127.0.0.1:5000/predict/" method="GET" >
+        <form action="http://127.0.0.1:5000/candidate/" method="GET" >
 
             <select class="form-select" name="eye">
                 <option value="0" SELECTED>What's your eye color?</option>
@@ -28,7 +28,7 @@
             <br>
             <select class="form-select" name="tone">
                 <option value="0" selected>How do you describe your skin tone?</option>
-                {% for tone in tones.values() %}
+                {% for tone in tones %}
                     <option value="{{tone}}">
                         {{tone}}
                     </option>
@@ -60,7 +60,7 @@
         </form>
     <br>
         <p class="h6 text-center"><em>Powered by more than 100,000 people and over 88 foundations</em></p>
-        <small class="text-center text-muted">Yuan-Ning Chu, Copyright 2022</small>
+        <small class="text-center text-muted">Yuan-Ning Chu, 2022</small>
 
 
 
