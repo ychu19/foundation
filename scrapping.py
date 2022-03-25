@@ -187,11 +187,20 @@ class scrapping_foundation_features(object):
         else:
             pass
 
+    def scrap_product_price(self):
+        if self.driver.find_elements(By.CSS_SELECTOR, 'p[data-comp="Price "'):
+            self.price = self.driver.find_elements(By.CSS_SELECTOR, 'p[data-comp="Price "')[0].text.split('\n')[0]
+        else:
+            self.price = 0
+        return self.price
+
+
     def save_data_to_json(self):
         cols = {
             "brand_product": self.product_name,
             "product_features": self.product_features,
-            "product_description": self.product_description
+            "product_description": self.product_description,
+            "price": self.price
         }
         self.data = pd.DataFrame([cols])
         self.data.to_json(f'data_foundation_features/{self.product_name}_features.json', orient='records', lines=True)

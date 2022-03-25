@@ -11,44 +11,28 @@
 
         <h1 style="text-align: center">FoundationFinder</h1>
 
-
-        <label>Tell me about yourself...</label>
+        <label>- Helping you select the best foundation and shade for you -</label>
+        <br>
+        <br>
+        <label>First, please tell us what kind of looks do you prefer?</label>
         <br>
         <br>
         <form action="http://127.0.0.1:5000/candidate/" method="GET" >
 
-            <select class="form-select" name="eye">
-                <option value="0" SELECTED>What's your eye color?</option>
-                {% for eye in eyes.values() %}
-                    <option value="{{eye}}">
-                        {{eye}}
+            <select class="form-select" name="finish">
+                <option value="0" SELECTED>What kind of finish do you like?</option>
+                {% for finish in finishes %}
+                    <option value="{{finish}}">
+                        {{finish.capitalize()}}
                     </option>
                 {% endfor %}
             </select>
             <br>
-            <select class="form-select" name="tone">
-                <option value="0" selected>How do you describe your skin tone?</option>
-                {% for tone in tones %}
-                    <option value="{{tone}}">
-                        {{tone}}
-                    </option>
-                {% endfor %}
-            </select>
-            <br>
-            <select class="form-select" name="hair">
-                <option value="0" SELECTED>How does your hair look like?</option>
-                {% for hair in hairs.values() %}
-                    <option value="{{hair}}">
-                        {{hair}}
-                    </option>
-                {% endfor %}
-            </select>
-            <br>
-            <select class="form-select" name="type">
-                <option value="0" SELECTED>Oily skin, dry skin, or combination?</option>
-                {% for type in types.values() %}
-                    <option value="{{type}}">
-                        {{type}}
+            <select class="form-select" name="coverage">
+                <option value="0" selected>How much coverage do you like?</option>
+                {% for coverage in coverages %}
+                    <option value="{{coverage}}">
+                        {{coverage.capitalize()}}
                     </option>
                 {% endfor %}
             </select>
@@ -68,4 +52,5 @@
     <!--    <p name="output">test</p>-->
     </div>
 </div>
+
 {% endblock %}

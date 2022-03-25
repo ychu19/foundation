@@ -31,7 +31,7 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
-import logging
+import pickle
 
 
 def create_dir_for_product_if_not_existent(product, plots_or_models: str = 'plots'):
@@ -184,14 +184,23 @@ class model_training(object):
             cols_cat = cols_cat.str.cat(pd.Series([color] * len(self.data)), sep='_')
         # for column names after one-hot encoding
 
-        enc_rest = OneHotEncoder(sparse=False)
-        train_X_transform = enc_rest.fit_transform(self.train_X[[col]])
+        enc_rest = OneHotEncoder(sparse=False, handle_unknown='ignore')
+        enc_rest = enc_rest.fit(self.train_X[[col]])
+        train_X_transform = enc_rest.transform(self.train_X[[col]])
+        # saving the encoder for prediction
+        with open(f'models/{self.product_name}/encoder_{self.product_name}_{col}.pickle', 'wb') as f:
+            pickle.dump(enc_rest, f)
+
         val_X_transform = enc_rest.transform(self.val_X[[col]])
 
         train_X_transform = pd.DataFrame(train_X_transform)
         col_names_dict = dict()
         for col_idx in train_X_transform.columns:
             col_names_dict[col_idx] = cols_cat[col_idx]
+
+        # for naming the encoded columns
+        with open(f'models/{self.product_name}/col_names_{self.product_name}_{col}.pickle', 'wb') as f:
+            pickle.dump(col_names_dict, f)
         train_X_transform.rename(columns=col_names_dict, inplace=True)
 
         val_X_transform = pd.DataFrame(val_X_transform)
