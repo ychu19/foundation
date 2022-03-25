@@ -2,16 +2,9 @@ import pandas as pd
 from time import sleep # control the crawl rate to avoid hammering the servers with too many requests
 from random import randint
 from tqdm import tqdm
-import re
-import datetime
 
 from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.desired_capabilities import DesiredCapabilities # dealing with pop-up permissions
-from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 
 from google.cloud import storage
 
@@ -187,11 +180,20 @@ class scrapping_foundation_features(object):
         else:
             pass
 
+    def scrap_product_price(self):
+        if self.driver.find_elements(By.CSS_SELECTOR, 'p[data-comp="Price "'):
+            self.price = self.driver.find_elements(By.CSS_SELECTOR, 'p[data-comp="Price "')[0].text.split('\n')[0]
+        else:
+            self.price = 0
+        return self.price
+
+
     def save_data_to_json(self):
         cols = {
             "brand_product": self.product_name,
             "product_features": self.product_features,
-            "product_description": self.product_description
+            "product_description": self.product_description,
+            "price": self.price
         }
         self.data = pd.DataFrame([cols])
         self.data.to_json(f'data_foundation_features/{self.product_name}_features.json', orient='records', lines=True)

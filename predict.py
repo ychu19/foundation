@@ -7,12 +7,14 @@ from sklearn.preprocessing import OneHotEncoder
 import re
 
 import warnings
+
 warnings.filterwarnings('ignore')
 
 import pickle
 
 import xgboost as xgb
 import os
+
 
 class feature_engineering(object):
 
@@ -152,11 +154,11 @@ class feature_engineering(object):
         """
         data_cross = pd.DataFrame()
 
-        if any(one_hot_col1.notnull().sum()==1) and any(one_hot_col2.notnull().sum()==1):
+        if any(one_hot_col1.notnull().sum() == 1) and any(one_hot_col2.notnull().sum() == 1):
             total_col1_cat = one_hot_col1.columns.to_list()
             total_col2_cat = one_hot_col2.columns.to_list()
-        # total_col1_cat = data.groupby([col1], as_index=False).count()[col1]
-        # total_col2_cat = data.groupby([col2], as_index=False).count()[col2]
+            # total_col1_cat = data.groupby([col1], as_index=False).count()[col1]
+            # total_col2_cat = data.groupby([col2], as_index=False).count()[col2]
 
             i = 0  # col1
 
@@ -228,34 +230,62 @@ class feature_engineering(object):
 
             return self.test_X_transformed
 
-def predict_from_user_input(input: dict):
-    list_of_foundation_names = []
-    for file in os.listdir('models/'):
-        list_of_foundation_names.append(os.path.join(file))
-    list_of_foundation_names = sorted(list_of_foundation_names)[1:]
+
+def candidate_generation(input: dict):
+    foundations = pd.read_csv("foundation_features_parsed_url.csv")
+
+    skin_type = 'skin_type_' + input['skin_type']
+    skin_type_dat = foundations[foundations[f'{skin_type}'] == 1]
+
+    if input['coverage'] == "I'm open-minded!":
+        coverage_dat = skin_type_dat
+    else:
+        coverage = input['coverage'].capitalize() + '_coverage'
+        coverage_dat = skin_type_dat[skin_type_dat[f'{coverage}'] == 1]
+
+    if input['finish'] == 'I like them all!':
+        finish_dat = coverage_dat
+    else:
+        finish = input['finish'].capitalize() + '_finish'
+        finish_dat = coverage_dat[coverage_dat[f'{finish}'] == 1]
+
+    return finish_dat[['brand_product', 'price_bucket']].reset_index(drop=True)
+
+
+def predict_from_user_input(input: dict, candidate_dat: pd.DataFrame):
+    # list_of_foundation_names = []
+    # for file in os.listdir('models/'):
+    #     list_of_foundation_names.append(os.path.join(file))
+    # list_of_foundation_names = sorted(list_of_foundation_names)[1:]
     # list_of_foundation_names = list_of_foundation_names[:5]
 
-    scores_cols = {'brand_product': str(), 'scores': float()}
+    scores_cols = {'brand_product': str(), 'scores': float(), 'price_bucket': int()}
     scores = pd.DataFrame([scores_cols])
-
-    for i in range(len(list_of_foundation_names)):
-
+    for i in range(len(candidate_dat)):
+        product_name_ = candidate_dat.loc[i, "brand_product"]
+        price_bucket_ = candidate_dat.loc[i, "price_bucket"]
         new_instance = feature_engineering(
-            product_name=list_of_foundation_names[i],
+            product_name=product_name_,
             input_dict=input
         )
         new_data = new_instance.feature_engineering()
 
         if not new_data.empty:
             model = xgb.XGBClassifier(objective='binary:logistic', use_label_encoder=False)
-            model.load_model(f'models/{list_of_foundation_names[i]}/{list_of_foundation_names[i]}_xgb.model')
+            model.load_model(f'models/{product_name_}/{product_name_}_xgb.model')
             results = model.predict_proba(new_data)[:, 1]
-            scores.loc[i, 'brand_product'] = list_of_foundation_names[i]
+            scores.loc[i, 'brand_product'] = product_name_
+            scores.loc[i, 'price_bucket'] = price_bucket_
             scores.loc[i, 'scores'] = results
 
     scores = scores.sort_values('scores', ascending=False).reset_index(drop=True)
-    scores = scores.iloc[0:4]
+    scores_bucket_0 = scores[scores['price_bucket'] == 0]
+    scores_bucket_1 = scores[scores['price_bucket'] == 1]
+    scores_bucket_2 = scores[scores['price_bucket'] == 2]
+
+    scores = pd.concat([scores_bucket_0.iloc[0:2], scores_bucket_1.iloc[0:2], scores_bucket_2.iloc[0:2]])
     return scores
+
 
 def get_longest_dict(col: str):
     """
@@ -263,15 +293,16 @@ def get_longest_dict(col: str):
     """
     list_of_foundation_names = []
     for file in os.listdir('models/'):
-        list_of_foundation_names.append(os.path.join(file))
+        if 'multiclass' not in file:
+            list_of_foundation_names.append(os.path.join(file))
     list_of_foundation_names = sorted(list_of_foundation_names)[1:]
 
     col_names_dict = dict()
 
     for i in range(len(list_of_foundation_names)):
         with open(
-            f'models/{list_of_foundation_names[i]}/col_names_{list_of_foundation_names[i]}_{col}.pickle',
-            'rb'
+                f'models/{list_of_foundation_names[i]}/col_names_{list_of_foundation_names[i]}_{col}.pickle',
+                'rb'
         ) as f:
             col_names_dict_for_i = pickle.load(f)
 
@@ -311,15 +342,18 @@ def filter_shade(input: dict, brand_product: str):
 
     return list_of_shades.to_list()
 
+
 def extracting_img_src(brand_product: str):
     foundation_features_parsed_url = pd.read_csv('foundation_features_parsed_url.csv')
-    img_src = foundation_features_parsed_url.loc[
-        foundation_features_parsed_url['brand_product'] == f'{brand_product}', 'img_src'].values[0]
+    img_src = foundation_features_parsed_url[
+        foundation_features_parsed_url['brand_product'] == f'{brand_product}'
+        ]['img_src'].values[0]
     return img_src
+
 
 def extracting_url(brand_product: str):
     foundation_features_parsed_url = pd.read_csv('foundation_features_parsed_url.csv')
-    url = foundation_features_parsed_url.loc[
-        foundation_features_parsed_url['brand_product'] == f'{brand_product}', 'url'].values[0]
+    url = foundation_features_parsed_url[
+        foundation_features_parsed_url['brand_product'] == f'{brand_product}'
+        ]['url'].values[0]
     return url
-

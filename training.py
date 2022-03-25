@@ -31,7 +31,7 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
-import logging
+import pickle
 
 
 def create_dir_for_product_if_not_existent(product, plots_or_models: str = 'plots'):
@@ -184,14 +184,23 @@ class model_training(object):
             cols_cat = cols_cat.str.cat(pd.Series([color] * len(self.data)), sep='_')
         # for column names after one-hot encoding
 
-        enc_rest = OneHotEncoder(sparse=False)
-        train_X_transform = enc_rest.fit_transform(self.train_X[[col]])
+        enc_rest = OneHotEncoder(sparse=False, handle_unknown='ignore')
+        enc_rest = enc_rest.fit(self.train_X[[col]])
+        train_X_transform = enc_rest.transform(self.train_X[[col]])
+        # saving the encoder for prediction
+        with open(f'models/{self.product_name}/encoder_{self.product_name}_{col}.pickle', 'wb') as f:
+            pickle.dump(enc_rest, f)
+
         val_X_transform = enc_rest.transform(self.val_X[[col]])
 
         train_X_transform = pd.DataFrame(train_X_transform)
         col_names_dict = dict()
         for col_idx in train_X_transform.columns:
             col_names_dict[col_idx] = cols_cat[col_idx]
+
+        # for naming the encoded columns
+        with open(f'models/{self.product_name}/col_names_{self.product_name}_{col}.pickle', 'wb') as f:
+            pickle.dump(col_names_dict, f)
         train_X_transform.rename(columns=col_names_dict, inplace=True)
 
         val_X_transform = pd.DataFrame(val_X_transform)
@@ -217,8 +226,6 @@ class model_training(object):
         """
         total_col1_cat = one_hot_col1.columns.to_list()
         total_col2_cat = one_hot_col2.columns.to_list()
-        # total_col1_cat = data.groupby([col1], as_index=False).count()[col1]
-        # total_col2_cat = data.groupby([col2], as_index=False).count()[col2]
 
         data_cross = pd.DataFrame()
 
@@ -301,11 +308,8 @@ class model_training(object):
 
         evallist = [(self.val_X_transformed, self.val_y), (self.train_X_transformed, self.train_y)]
         xgbmodel = xgb.XGBClassifier(
-            # scale_pos_weight=(len(model.y) - sum(model.y)) / sum(model.y),
             objective='binary:logistic',
             use_label_encoder=False,
-            # verbose_eval=False,
-            # booster='gbtree'
         )
 
         self.param_grid = {
@@ -314,9 +318,7 @@ class model_training(object):
             "learning_rate": [0.1, 0.01, 0.05],
             "gamma": [0, 0.25, 1],
             "reg_alpha": [0, 0.5, 1],
-            "scale_pos_weight": [0, 1 - (sum(self.y) / len(self.y)), (len(self.y) - sum(self.y)) / sum(self.y)],
-            # "subsample": [0.8],
-            # "colsample_bytree": [0.5],
+            "scale_pos_weight": [0, 1 - (sum(self.y) / len(self.y)), (len(self.y) - sum(self.y)) / sum(self.y)]
         }
 
         self.grid_cv = GridSearchCV(
@@ -339,259 +341,15 @@ class model_training(object):
 
         for key, value in self.grid_cv.best_params_.items():
             self.param_grid[key] = [value]
-        # self.param_grid = param_grid
 
         create_dir_for_product_if_not_existent(product=self.product_name, plots_or_models='models')
         self.best_model.save_model(f'models/{self.product_name}/{self.product_name}_xgb.model')
 
-    # def training_xgb_model_with_grid_search(
-    #         self,
-    #         # N_TRIALS:int=10
-    # ):
-    #     params = self.param_grid()
-    #
-    #     self.best_model = self.train_single_run(
-    #         train_X=self.train_X_transformed,
-    #         train_y=self.train_y,
-    #         val_X=self.val_X_transformed,
-    #         val_y=self.val_y,
-    #         parameters=params,
-    #         num_round=10
-    #     )
-    #
-    #     create_dir_for_product_if_not_existent(product=self.product_name, plots_or_models='models')
-    #     self.best_model.save_model(f'models/{self.product_name}/{self.product_name}_xgb.model')
-    #
-    #
-    # def get_cross_validated_accuracy(
-    #         self,
-    #         # X_train: pd.DataFrame,
-    #         # y_train: pd.Series,
-    #         # X_valid: pd.DataFrame,
-    #         # y_valid: pd.Series,
-    #         trial: optuna.Trial,
-    #         hyperparams: dict,
-    #         NUM_ROUND: int
-    # ) -> tuple:
-    #     """
-    #     This function takes in the X and y dataframes, splits the data into 5 folds,
-    #     trains a model by crossvalidating on all folds with the given hyperparams
-    #     an returns the crossvalidated_mse_score across all folds.
-    #
-    #     Also returns the model trained for this particular run
-    #     """
-    #     kf = KFold(
-    #         n_splits=5,
-    #         random_state=self.random_state,
-    #         shuffle=True
-    #     )
-    #
-    #     self.train_X_transformed, self.train_y = shuffle(self.train_X_transformed,
-    #                                                      self.train_y,
-    #                                                      random_state=self.random_state
-    #                                                      )
-    #     accuracy_all_folds = []
-    #     for i, (train_index, val_index) in enumerate(kf.split(self.train_X_transformed)):
-    #         X_train_fold, X_val_fold = self.train_X_transformed.iloc[train_index], \
-    #                                    self.train_X_transformed.iloc[val_index]
-    #         y_train_fold, y_val_fold = self.train_y.iloc[train_index], \
-    #                                    self.train_y.iloc[val_index]
-    #
-    #         # pruning_callback = optuna.integration.XGBoostPruningCallback(trial, "validation-auc")
-    #         bst = self.train_single_run(
-    #             train_X=X_train_fold,
-    #             train_y=y_train_fold,
-    #             val_X=X_val_fold,
-    #             val_y=y_val_fold,
-    #             parameters=hyperparams,
-    #             num_round=NUM_ROUND
-    #             # callback=pruning_callback
-    #         )
-    #
-    #         # Make predictions with current set of hyperparams
-    #         predicts = bst.predict(X_val_fold)
-    #         predict_y = np.rint(predicts)
-    #         accuracy = accuracy_score(y_val_fold, predict_y)
-    #         accuracy_all_folds.append(accuracy)
-    #
-    #     self.logger.info(">>> Trial parameters:")
-    #     self.logger.info(hyperparams)
-    #
-    #     self.logger.info(f"The values of accuracy for the different folds = {accuracy_all_folds}")
-    #     cross_validated_accuracy = np.mean(accuracy_all_folds)
-    #     return bst, cross_validated_accuracy
-    #
-    # def hyperparameter_tune(
-    #         self,
-    #         # N_TRIALS: int
-    # ) -> dict:
-    #     """
-    #     This function performs the hyperparameter tuning given a training dataset and
-    #     a test dataset.
-    #     Returns the best hyperparameter set
-    #     """
-    #     initial_hyperparams = {
-    #         'verbosity': 0,
-    #         # 'booster': trial.suggest_categorical("booster", ['gbtree', 'gblinear', 'dart']),
-    #         'objective': 'binary:logistic',
-    #         'eval_metric': ['auc', 'logloss'],
-    #         # 'lambda': trial.suggest_loguniform('lambda', 1e-8, 1.0),
-    #         # 'alpha': trial.suggest_loguniform('alpha', 1e-8, 1.0),
-    #     }
-    #
-    #     study = optuna.create_study(
-    #         study_name=self.product_name,
-    #         direction='minimize',
-    #         sampler=TPESampler()
-    #         # sampler=RandomSampler()
-    #     )
-    #
-    #     study.optimize(
-    #         lambda trial: self.objective(trial, NUM_ROUND=10),
-    #         # timeout=HYPERPARAM_TIMEOUT,
-    #         n_trials=10,
-    #         n_jobs=1
-    #     )
-    #     tuned_params = study.best_trial.params
-    #
-    #     # Replace guessed parameter with concrete best values
-    #     for key, value in tuned_params.items():
-    #         initial_hyperparams[key] = value
-    #
-    #     return initial_hyperparams
-    #
-    # def objective(
-    #         self,
-    #         trial: optuna.Trial,
-    #         NUM_ROUND: int
-    # ) -> float:
-    #     """
-    #     The objective function calculated while tuning hyperparameters.
-    #     The suggestions for the next set of hyperparameters on the next round is
-    #     performed using Tree Structured Parzen Estimation. The value being optimized
-    #     for is mse.
-    #     Returns the mse value for the trial calculated on the test set
-    #     """
-    #     hyperparams = {
-    #         'verbosity': 0,
-    #         'verbose_eval': False,
-    #         'booster': 'gbtree',
-    #         # 'booster': trial.suggest_categorical("booster", ['gbtree', 'dart']),
-    #         'objective': 'binary:logistic',
-    #         'n_estimators': trial.suggest_int('n_estimators', 5, 20),
-    #         'eval_metric': 'auc',
-    #         'reg_lambda': trial.suggest_loguniform('lambda', 1e-8, 1.0),
-    #         'reg_alpha': trial.suggest_loguniform('alpha', 1e-8, 1.0)
-    #     }
-    #
-    #     if hyperparams["booster"] == "gbtree" or hyperparams["booster"] == "dart":
-    #         hyperparams["max_depth"] = trial.suggest_int("max_depth", 1, 15)
-    #         hyperparams["learning_rate"] = trial.suggest_loguniform("eta", 1e-8, 1.0)
-    #         hyperparams["gamma"] = trial.suggest_loguniform("gamma", 1e-8, 1.0)
-    #         hyperparams["grow_policy"] = trial.suggest_categorical("grow_policy", ["depthwise", "lossguide"])
-    #
-    #     if hyperparams["booster"] == "dart":
-    #         hyperparams["sample_type"] = trial.suggest_categorical("sample_type", ["uniform", "weighted"])
-    #         hyperparams["normalize_type"] = trial.suggest_categorical("normalize_type", ["tree", "forest"])
-    #         hyperparams["rate_drop"] = trial.suggest_loguniform("rate_drop", 1e-8, 1.0)
-    #         hyperparams["skip_drop"] = trial.suggest_loguniform("skip_drop", 1e-8, 1.0)
-    #
-    #     # _, cross_validated_accuracy = self.get_cross_validated_accuracy(
-    #     #     # X_train,
-    #     #     # y_train,
-    #     #     # X_valid,
-    #     #     # y_valid,
-    #     #     hyperparams=hyperparams,
-    #     #     NUM_ROUND=NUM_ROUND,
-    #     #     trial=trial
-    #     # )
-    #
-    #     bst = self.train_single_run(
-    #         train_X=self.train_X_transformed,
-    #         train_y=self.train_y,
-    #         val_X=self.val_X_transformed,
-    #         val_y=self.val_y,
-    #         parameters=hyperparams,
-    #         num_round=NUM_ROUND
-    #         # callback=pruning_callback
-    #     )
-    #     predicts = bst.predict(self.val_X_transformed)
-    #     predict_y = np.rint(predicts)
-    #     accuracy = accuracy_score(self.val_y, predict_y)
-    #     # accuracy_all_folds.append(accuracy)
-    #     # return cross_validated_accuracy
-    #     return accuracy
-    #
-    # def train_single_run(
-    #         self,
-    #         train_X,
-    #         val_X,
-    #         train_y,
-    #         val_y,
-    #         parameters: dict,
-    #         num_round: int,
-    #         callback=None
-    # ) -> xgb.train:
-    #     """
-    #     Accepts a set of hyperparameters, a training dataset and a parameters dict
-    #     and returns a trained model on this data. Note that both early stopping and
-    #     the metric calculation is determined based on trying to maximize the f1score
-    #     on the test data, which has the native imbalanced distribution
-    #
-    #     Return a lightgbm.Booster object
-    #     """
-    #
-    #     model = xgb.XGBClassifier(
-    #         **parameters,
-    #         random_state=self.random_state,
-    #         # n_estimators=num_round,
-    #         scale_pos_weight=(len(self.y) - sum(self.y)) / sum(self.y),
-    #         use_label_encoder=False
-    #     )
-    #     # scale_pos_weight = total_negative_examples / total_positive_examples
-    #     evallist = [(val_X, val_y), (train_X, train_y)]
-    #     model_fit = model.fit(
-    #         X=train_X, y=train_y,
-    #         eval_set=evallist,
-    #         verbose=False,
-    #         callbacks=callback
-    #     )
-    #
-    #     return model_fit
-
-    # def training_xgb_model(
-    #         self,
-    #         # N_TRIALS:int=10
-    # ):
-    #     params = self.hyperparameter_tune()
-    #
-    #     self.best_model = self.train_single_run(
-    #         train_X=self.train_X_transformed,
-    #         train_y=self.train_y,
-    #         val_X=self.val_X_transformed,
-    #         val_y=self.val_y,
-    #         parameters=params,
-    #         num_round=10
-    #     )
-    #
-    #     create_dir_for_product_if_not_existent(product=self.product_name, plots_or_models='models')
-    #     self.best_model.save_model(f'models/{self.product_name}/{self.product_name}_xgb.model')
 
     def thresholding(
             self
     ):
-        # if self.best_model.get_params()['booster'] == 'gbtree':
         self.predict_y = self.best_model.predict_proba(self.val_X_transformed)[:, 1]
-        # else: # if 'booster' = 'dart'
-            # 'dart': 'Dropouts meet Multiple Additive Regression Trees'
-            # it drops trees in order to solve the over-fitting
-            # see documentation: https://xgboost.readthedocs.io/en/stable/tutorials/dart.html
-
-        # print(predict_y)
-        # y_lr_post_probs = self.best_model.predict_proba(X_lr_train)
-
-        # self.logger.info(f"ROC AUC score on test data is {roc_auc_score(self.val_y, self.predict_y)}")
-        # fpr, tpr, thresholds = roc_curve(self.val_y, predict_y)
 
         self.metrics_dict = {
             'ratio_positives': [],
@@ -688,19 +446,6 @@ class model_training(object):
         """
 
         thresholds = np.linspace(0, 1, 101)
-
-        # precisions = []
-        # recalls = []
-        # f1_scores = []
-        #
-        # self.metrics_dict
-        #
-        # for threshold in thresholds:
-        #     predict_y_binary = np.where(self.y_lr_pred_probs >= threshold, 1, 0)
-        #
-        #     precisions.append(precision_score(val_y, predict_y_binary))
-        #     recalls.append(recall_score(val_y, predict_y_binary))
-        #     f1_scores.append(f1_score(val_y, predict_y_binary))
 
         precision_at_p5 = precision_score(val_y, np.where(self.predict_y >= 0.5, 1, 0))
         recall_at_p5 = recall_score(val_y, np.where(self.predict_y >= 0.5, 1, 0))
