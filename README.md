@@ -1,5 +1,7 @@
 # The FoundationFinder
 
+## About This Project
+
 It is reported that more than 100 million women in the U.S. have used makeup foundation in 2020 ([source](https://www.statista.com/statistics/275729/us-households-usage-of-foundation-and-concealer-make-up/#:~:text=Usage%20of%20foundation%20and%20concealer%20make%2Dup%20in%20the%20U.S.%202020&text=The%20data%20has%20been%20calculated,concealer%20make%2Dup%20in%202020)). A makeup foundation evens out people’s skin tones and covers flaws.  
 
 When picking a foundation, a lot of people think about their skin types, because the same foundation can turn a person’s skin into a desert, but make another’s into a big oil field. And once you decided which foundation to buy, you need to find the right shade that matches your skin tone. There are almost 7,000 combination of foundation products and shades ([source](https://pudding.cool/2021/03/foundation-names/)), because each brand has a different set of shades. 
@@ -10,15 +12,25 @@ That's why I built the FoundationFinder, powered by machine learning.
 
 ## Here's how it looks like
 
-<img src="https://github.com/ychu19/foundation/blob/main/img/UI_index.jpg" width=800px class="center">
+First, users tell the app about the coverage and finish that they like:
 
-First, users tell the app about their eye colors, hair colors, skin tones, and skin types. Like this:
+<img src="https://github.com/ychu19/foundation/blob/main/img/index.jpg" width=500px class="center">
 
-<img src="https://github.com/ychu19/foundation/blob/main/img/UI_input.jpg" width=800px>
+For my case, I prefer foundations with natural finish and light coverage:
 
-And then the app recommends the users **four** foundations, each with **three** shades, as shown here:
+<img src="https://github.com/ychu19/foundation/blob/main/img/index_select.jpg" width=500px>
 
-<img src="https://github.com/ychu19/foundation/blob/main/img/UI_predict.jpg" width=800px>
+And then the users tell the app about their eye colors, hair colors, skin tones, and skin type. 
+
+<img src="https://github.com/ychu19/foundation/blob/main/img/candidate.jpg" width=500px class="center">
+
+For my case:
+
+<img src="https://github.com/ychu19/foundation/blob/main/img/candidate_select.jpg" width=500px class="center">
+
+And then the app recommends the users **three** foundations, each with **three** shades, as shown here:
+
+<img src="https://github.com/ychu19/foundation/blob/main/img/predict.jpg" width=700px>
 
 The app also has a link beneath each foundation that takes the users to the Sephora website for purchase.
 
@@ -66,13 +78,11 @@ I deployed the models by saving all the model objects and one-hot encoders, and 
 
 ## Backstage
 
-<img src="https://github.com/ychu19/foundation/blob/scrapping/img/backstage.svg" width=600px>
+<img src="https://github.com/ychu19/foundation/blob/main/img/backstage.jpeg" width=800px>
 
 ### Candidate Generating Process
 
-This app is still in its development stage, but I plan to have the app asking my users about their preferences for foundations, including finishes (natural, sheer, dewy, matte), coverages (natural, light, medium, full). With this input, the app narrows down the number of foundations that the users may be interested and generates an initial set of candidates. This step speeds up the time to make predictions, because the app does not have to go through all the predictors for each foundation to find the best matches.
-
-<img src="https://github.com/ychu19/foundation/blob/scrapping/img/candidate_generating.svg" width=600px>
+With input from the users, the app narrows down the number of foundations that the users may be interested and generates an initial set of candidates. This step speeds up the time to make predictions, because the app does not have to go through all the predictors for each foundation to find the best matches.
 
 ### Processing User Input
 
