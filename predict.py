@@ -2,9 +2,6 @@ import pandas as pd
 
 pd.options.mode.chained_assignment = None
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import OneHotEncoder
-
-import re
 
 import warnings
 
@@ -48,8 +45,6 @@ class feature_engineering(object):
         (b) having less than 5 people in the validation set
         This function drops these reviewers in both the training and validation sets after doing train_test_split
         """
-        # self.logger.info(f'Before dropping outliers:')
-        # self.logger.info(f'N in train_X is {len(self.train_X)}, N in val_X is {len(self.val_X)}')
 
         if cols is None:
             cols = ['hair_color', 'eye_color', 'skin_tone']
@@ -79,10 +74,6 @@ class feature_engineering(object):
                         n_dropped += len(train_indices)
                         self.train_X.drop(index=train_indices, inplace=True)
                         self.train_y.drop(index=train_indices, inplace=True)
-                        # self.train_X = self.train_X[self.train_X[c] != i]
-                    # self.logger.info(
-                    #     f'{n_dropped} reviewers with value {outliers_count.to_list()} in {c} are dropped'
-                    # )
                     continue
 
                 elif not outliers_proportion.empty:
@@ -124,7 +115,6 @@ class feature_engineering(object):
                 return test_X_transform
 
             else:
-                # print(f"no such category for {col}")
                 return pd.DataFrame()
         else:
             # for columns other than hair or eye colors
@@ -142,10 +132,7 @@ class feature_engineering(object):
     def cross_one_hot_features(
             self,
             one_hot_col1: pd.DataFrame,
-            one_hot_col2: pd.DataFrame,
-            data: pd.DataFrame,
-            col1: str = 'skin_type',
-            col2: str = 'skin_tone'
+            one_hot_col2: pd.DataFrame
     ):
         """
         given one-hot encoded feature 1 (one_hot_col1) and one-hot encoded feature 2 (one_hot_col1),
@@ -157,8 +144,6 @@ class feature_engineering(object):
         if any(one_hot_col1.notnull().sum() == 1) and any(one_hot_col2.notnull().sum() == 1):
             total_col1_cat = one_hot_col1.columns.to_list()
             total_col2_cat = one_hot_col2.columns.to_list()
-            # total_col1_cat = data.groupby([col1], as_index=False).count()[col1]
-            # total_col2_cat = data.groupby([col2], as_index=False).count()[col2]
 
             i = 0  # col1
 
@@ -200,8 +185,7 @@ class feature_engineering(object):
 
         self.tone_type_cross_test = self.cross_one_hot_features(
             one_hot_col1=self.skin_tone_one_hot_test,
-            one_hot_col2=self.skin_type_one_hot_test,
-            data=self.data
+            one_hot_col2=self.skin_type_one_hot_test
         )
 
         self.hair_one_hot_test = self.one_hot_encoding(col='hair_color')
@@ -253,11 +237,6 @@ def candidate_generation(input: dict):
 
 
 def predict_from_user_input(input: dict, candidate_dat: pd.DataFrame):
-    # list_of_foundation_names = []
-    # for file in os.listdir('models/'):
-    #     list_of_foundation_names.append(os.path.join(file))
-    # list_of_foundation_names = sorted(list_of_foundation_names)[1:]
-    # list_of_foundation_names = list_of_foundation_names[:5]
 
     scores_cols = {'brand_product': str(), 'scores': float(), 'price_bucket': int()}
     scores = pd.DataFrame([scores_cols])
