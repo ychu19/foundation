@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block head %}
+
+{% endblock %}
+
+{% block body %}
+
+<div class="container col-5 bg-white my-md-5 py-md-5 px-md-5">
+    <div class="content">
+
+        <h1 style="text-align: center">FoundationFinder</h1>
+
+        <label>- Helping you select the best foundation and shade for you -</label>
+        <br>
+        <br>
+        <label>First, please tell us what kind of looks do you prefer?</label>
+        <br>
+        <br>
+        <form action="http://127.0.0.1:5000/candidate/" method="GET" >
+
+            <select class="form-select" name="finish">
+                <option value="0" SELECTED>What kind of finish do you like?</option>
+                {% for finish in finishes %}
+                    <option value="{{finish}}">
+                        {{finish.capitalize()}}
+                    </option>
+                {% endfor %}
+            </select>
+            <br>
+            <select class="form-select" name="coverage">
+                <option value="0" selected>How much coverage do you like?</option>
+                {% for coverage in coverages %}
+                    <option value="{{coverage}}">
+                        {{coverage.capitalize()}}
+                    </option>
+                {% endfor %}
+            </select>
+            <br>
+
+<!--        <label>What kinds of foundations do you prefer?</label>-->
+<!--        <br>-->
+            <input type="submit" value="submit">
+        </form>
+    <br>
+        <p class="h6 text-center"><em>Powered by more than 100,000 people and over 88 foundations</em></p>
+        <small class="text-center text-muted">Yuan-Ning Chu, 2022</small>
+
+
+
+
+    <!--    <p name="output">test</p>-->
+    </div>
+</div>
+
+{% endblock %}
