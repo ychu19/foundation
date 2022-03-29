@@ -8,9 +8,25 @@ When picking a foundation, a lot of people think about their skin types, because
 
 FoundationFinder saves time and money for the consumers by narrowing down the options from 7000 to 12. In addition, while the market value of makeup foundations was at $35.5 billion dollars in the U.S. in 2021 alone ([source](https://www.imarcgroup.com/face-makeup-market)), inefficiency remains in giving out free samples and handling returns to help consumers choose the right foundation and shade.
 
+## Table of Contents
+
+* [How the App Looks Like](#here-is-how-it-looks-like)
+* [How I Built the App](#here-is-how-i-built-the-app)
+    + [Data Collection](#data-collection)
+    + [Data Cleaning and Feature Engineering](#data-cleaning-and-feature-engineering)
+    + [Model Training](#model-training)
+    + [Model Deployment](#model-deployment)
+* [Backstage](#backstage)
+    + [Candidate Generation](#candidate-generating-process)
+    + [Processing User Input](#processing-user-input)
+    + [Making Predictions](#making-predictions-and-recommendations)
+    + [Querying Best Possible Shades](#querying-best-possible-shades)
+* [TOC of the Repo](#toc-of-the-repo)
+
+
 That's why I built the FoundationFinder, powered by machine learning.
 
-## Here's how it looks like
+## Here is how it looks like
 
 First, users tell the app about the coverage and finish that they like:
 
@@ -34,7 +50,7 @@ And then the app recommends the users **three** foundations, each with **three**
 
 The app also has a link beneath each foundation that takes the users to the Sephora website for purchase.
 
-## Here's how I built the app
+## Here is how I built the app
 
 ### Data Collection
 
@@ -96,3 +112,12 @@ After feeding the user input to the predictors, each predicting how likely the u
 
 With the four foundations the app recommends, I then query the data to look for most purchased shades among the satisfied reviewers who share similar characteristics with the user, and recommend the top three shades to the user.
 
+## TOC of the Repo
+
++ UI for FoundationFinder: [`app.py`](https://github.com/ychu19/foundation/blob/main/app.py), [`static/`](https://github.com/ychu19/foundation/tree/main/static) and [`templates/`](https://github.com/ychu19/foundation/tree/main/templates)
++ EDA: [`data_presentation.ipynb`](https://github.com/ychu19/foundation/blob/main/data_presentation.ipynb) and [`data_presentation.html`](https://yuanningchu.web.illinois.edu/data_presentation.html)
++ Data collection: [`scrapping.py`](https://github.com/ychu19/foundation/blob/main/scrapping.py), [`scrapping_foundation_features.ipynb`](https://github.com/ychu19/foundation/blob/main/scrapping_foundation_features.ipynb), also see [`notebooks/scrapping_reviews*.ipynb`](https://github.com/ychu19/foundation/tree/main/notebooks)
++ Data cleaning: [`cleaning.py`](https://github.com/ychu19/foundation/blob/main/cleaning.py) and [`notebooks/data_cleaning.ipynb`](https://github.com/ychu19/foundation/blob/main/notebooks/data_cleaning.ipynb)
++ Model training: [`training.py`](https://github.com/ychu19/foundation/blob/main/training.py)
++ Making prediction: [`predict.py`](https://github.com/ychu19/foundation/blob/main/predict.py)
++ Environment: [`requirements.txt`](https://github.com/ychu19/foundation/blob/main/requirements.txt)
