@@ -1,5 +1,7 @@
 # The FoundationFinder
 ([See the video of my presentation here!](https://youtu.be/ltOavmILLx4))
+
+([And the slides for my presentation here](https://docs.google.com/presentation/d/1ysKqE8n-pkFnf8zwJE1BmCqK5j81C047wZfUR4gJMZI/edit?usp=sharing))
 ## About This Project
 
 It is reported that more than 100 million women in the U.S. have used makeup foundation in 2020 ([source](https://www.statista.com/statistics/275729/us-households-usage-of-foundation-and-concealer-make-up/#:~:text=Usage%20of%20foundation%20and%20concealer%20make%2Dup%20in%20the%20U.S.%202020&text=The%20data%20has%20been%20calculated,concealer%20make%2Dup%20in%202020)). A makeup foundation evens out people’s skin tones and covers flaws.  
